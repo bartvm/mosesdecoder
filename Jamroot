@@ -132,6 +132,8 @@ project : requirements
   <define>_FILE_OFFSET_BITS=64 <define>_LARGE_FILES
   $(requirements)
   <include>.
+  <include>/usr/include/python2.7
+  <cflags>-lpython2.7 <linkflags>-lpython2.7
   ;
 
 #Add directories here if you want their incidental targets too (i.e. tests).
