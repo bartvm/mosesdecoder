@@ -3,6 +3,7 @@
 #include "Manager.h"
 #include "Hypothesis.h"
 #include "util/exception.hh"
+#include <iostream>
 
 //#include <google/profiler.h>
 
@@ -12,7 +13,7 @@ namespace Moses
 {
 SearchNormalBatch::SearchNormalBatch(Manager& manager, const InputType &source, const TranslationOptionCollection &transOptColl)
   :SearchNormal(manager, source, transOptColl)
-  ,m_batch_size(10000)
+  ,m_batch_size(512)
 {
   m_max_stack_size = StaticData::Instance().GetMaxHypoStackSize();
 
@@ -21,7 +22,7 @@ SearchNormalBatch::SearchNormalBatch(Manager& manager, const InputType &source, 
   const vector<const StatefulFeatureFunction*>& ffs =
     StatefulFeatureFunction::GetStatefulFeatureFunctions();
   for (unsigned i = 0; i < ffs.size(); ++i) {
-    if (ffs[i]->GetScoreProducerDescription() == "DLM_5gram") { // TODO WFT
+    if (ffs[i]->GetScoreProducerDescription() == "CSLM") { // TODO WFT
       m_dlm_ffs[i] = const_cast<LanguageModel*>(static_cast<const LanguageModel* const>(ffs[i]));
       m_dlm_ffs[i]->SetFFStateIdx(i);
     } else {
@@ -137,6 +138,7 @@ ExpandHypothesis(const Hypothesis &hypothesis,
          ++dlm_iter) {
       const FFState* input_state = newHypo->GetPrevHypo() ? newHypo->GetPrevHypo()->GetFFState((*dlm_iter).first) : NULL;
       (*dlm_iter).second->IssueRequestsFor(*newHypo, input_state);
+//        cout << "C" << endl << flush;
     }
     m_partial_hypos.push_back(newHypo);
   } else {
@@ -146,10 +148,12 @@ ExpandHypothesis(const Hypothesis &hypothesis,
 
 void SearchNormalBatch::EvalAndMergePartialHypos()
 {
+//  cout << "Merging " << m_partial_hypos.size() << " hypos" << endl;
   std::vector<Hypothesis*>::iterator partial_hypo_iter;
   for (partial_hypo_iter = m_partial_hypos.begin();
        partial_hypo_iter != m_partial_hypos.end();
        ++partial_hypo_iter) {
+//        cout << "B" << endl << flush;
     Hypothesis* hypo = *partial_hypo_iter;
 
     // Evaluate with other ffs.
@@ -190,13 +194,18 @@ void SearchNormalBatch::EvalAndMergePartialHypos()
          dlm_iter != m_dlm_ffs.end();
          ++dlm_iter) {
       LanguageModel &lm = *(dlm_iter->second);
+//        cout << "A" << endl << flush;
       hypo->EvaluateWith(lm, (*dlm_iter).first);
     }
+    
+    // Add up all the scores
+    hypo->CalcTotalScore(m_transOptColl.GetFutureScore());
 
     // Put completed hypothesis onto its stack.
     size_t wordsTranslated = hypo->GetWordsBitmap().GetNumWordsCovered();
     m_hypoStackColl[wordsTranslated]->AddPrune(hypo);
   }
+//  cout << "Clearing " << m_partial_hypos.size() << " hypos" << endl;
   m_partial_hypos.clear();
 
   std::vector < HypothesisStack* >::iterator stack_iter;

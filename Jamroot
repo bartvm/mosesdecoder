@@ -70,10 +70,13 @@
 #--clean to clean
 
 import option ;
+import python ;
 import modules ;
 import path ;
 path-constant TOP : . ;
 include $(TOP)/jam-files/sanity.jam ;
+
+using python : 2.7 : /System/Library/Frameworks/Python.framework/Versions/2.7/include/python2.7 ;
 
 boost 103600 ;
 external-lib z ;
@@ -132,6 +135,14 @@ project : requirements
   <define>_FILE_OFFSET_BITS=64 <define>_LARGE_FILES
   $(requirements)
   <include>.
+  <include>/usr/include/python2.7
+  <include>/usr/lib/python2.7
+  <include>/System/Library/Frameworks/Python.framework/Versions/2.7/lib/python2.7/config
+  <include>/System/Library/Frameworks/Python.framework/Versions/2.7/include/python2.7
+  <include>/System/Library/Frameworks/Python.framework/Versions/2.7/lib/python2.7
+  <include>/System/Library/Frameworks/Python.framework/Versions/2.7/lib
+  <include>/System/Library/Frameworks/Python.framework/Versions/2.7/lib/python2.7/config/
+  <cflags>-lpython2.7 <linkflags>"-L/System/Library/Frameworks/Python.framework/Versions/2.7/lib/python2.7/config -ldl -framework CoreFoundation -lpython2.7 -lboost_python"
   ;
 
 #Add directories here if you want their incidental targets too (i.e. tests).
