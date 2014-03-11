@@ -1,6 +1,8 @@
 import cPickle
 import numpy
 import theano
+from collections import defaultdict
+from itertools import chain
 
 with open('europarl_best_sentence.pkl') as f:
     model = cPickle.load(f)
@@ -8,34 +10,38 @@ with open('en.vcb.pkl') as f:
     table = cPickle.load(f)
 
 input = theano.tensor.lmatrix()
-targets = theano.tensor.lrow()
+windows = theano.tensor.lvector()
+targets = theano.tensor.lvector()
 f = theano.function(
-    [input, targets],
+    [input, windows, targets],
     theano.tensor.log10(
-        model.fprop(input)[theano.tensor.arange(targets.shape[0]),
-                           targets.flatten()]
+        model.fprop(input)[windows, targets]
     )
 )
 
-requests = []
-targets = []
-
-def request(phrase):
-    global requests
-    global targets
-    phrase = [table.get(word, 1) for word in phrase]
-    phrase = [index if index < 10000 else 1 for index in phrase]
-    targets.append(phrase[-1])
-    requests.append(phrase[:-1])
-
-def run_cslm():
-    global requests
-    global targets
-    if requests:
-        results = list(f(numpy.array(requests, dtype='int64'),
-                         numpy.array([targets], dtype='int64')))
-        requests = []
-        targets = []
-    else:
-        results = []
-    return results
+def run_cslm(batch):
+    data = defaultdict(list)
+    for pair in batch:
+        ngram, score = pair.key(), pair.data()
+        ngram_indices = []
+        for word in ngram:
+            index = table.get(word, 1)
+            if index < 10000:
+                ngram_indices.append(index)
+            else:
+                ngram_indices.append(1)
+        data[tuple(ngram_indices[:-1])].append(ngram_indices[-1])
+    input = numpy.array(data.keys())
+    windows = numpy.array([i for i, window in enumerate(data.iterkeys()) for j in range(len(data[window]))])
+    targets = numpy.array([index for targets in data.itervalues() for index in targets])
+    f(input, windows, targets)
+#    print len(input)
+#    if requests:
+#      results = list(f(numpy.array(requests, dtype='int64'),
+#                       numpy.array([targets], dtype='int64')))
+#      requests = []
+#      targets = []
+#    else:
+#        results = []
+#    return results
+    return True

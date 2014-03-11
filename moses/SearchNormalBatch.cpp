@@ -3,6 +3,7 @@
 #include "Manager.h"
 #include "Hypothesis.h"
 #include "util/exception.hh"
+#include <iostream>
 
 //#include <google/profiler.h>
 
@@ -12,7 +13,7 @@ namespace Moses
 {
 SearchNormalBatch::SearchNormalBatch(Manager& manager, const InputType &source, const TranslationOptionCollection &transOptColl)
   :SearchNormal(manager, source, transOptColl)
-  ,m_batch_size(512)
+  ,m_batch_size(10000)
 {
   m_max_stack_size = StaticData::Instance().GetMaxHypoStackSize();
 
@@ -137,6 +138,7 @@ ExpandHypothesis(const Hypothesis &hypothesis,
          ++dlm_iter) {
       const FFState* input_state = newHypo->GetPrevHypo() ? newHypo->GetPrevHypo()->GetFFState((*dlm_iter).first) : NULL;
       (*dlm_iter).second->IssueRequestsFor(*newHypo, input_state);
+//        cout << "C" << endl << flush;
     }
     m_partial_hypos.push_back(newHypo);
   } else {
@@ -174,7 +176,7 @@ void SearchNormalBatch::EvalAndMergePartialHypos()
   for (dlm_iter = m_dlm_ffs.begin();
        dlm_iter != m_dlm_ffs.end();
        ++dlm_iter) {
-    (*dlm_iter).second->sync();
+    (*dlm_iter).second->SyncBuffer();
   }
 
   // Incorporate the DLM scores into all hypotheses and put into their
@@ -199,6 +201,12 @@ void SearchNormalBatch::EvalAndMergePartialHypos()
     // Put completed hypothesis onto its stack.
     size_t wordsTranslated = hypo->GetWordsBitmap().GetNumWordsCovered();
     m_hypoStackColl[wordsTranslated]->AddPrune(hypo);
+  }
+  // Clear the buffers
+  for (dlm_iter = m_dlm_ffs.begin();
+       dlm_iter != m_dlm_ffs.end();
+       ++dlm_iter) {
+    (*dlm_iter).second->ClearBuffer();
   }
   m_partial_hypos.clear();
 

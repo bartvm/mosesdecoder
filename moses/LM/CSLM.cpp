@@ -3,7 +3,8 @@
 #include "moses/FactorCollection.h"
 #include "PointerState.h"
 #include <iostream>
-#include <boost/python/suite/indexing/vector_indexing_suite.hpp> // Needed?
+#include <boost/python/suite/indexing/map_indexing_suite.hpp> // Needed?
+#include <boost/python/suite/indexing/vector_indexing_suite.hpp>
 
 using namespace std;
 using namespace boost::python;
@@ -26,9 +27,17 @@ namespace Moses {
   
   void CSLM::Load() {
     Py_Initialize();
+    class_<map<vector<string>,float> >("ContextFactors")
+    .def(map_indexing_suite<map<vector<string>, float> >());
+    class_<vector<string> >("Phrase")
+    .def(vector_indexing_suite<vector<string> >());
+//    class_<Factor, Factor*, boost::noncopyable>("Factor", no_init)
+//    .def("GetString", &Factor::GetString);
+//    class_<Word, boost::remove_const<Word*>::type >("Word")
+//    .def("GetFactor", &Word::GetFactor, return_value_policy<reference_existing_object>());
     try {
       object py_cslm = import("cslm");
-      py_request = py_cslm.attr("request");
+//      py_request = py_cslm.attr("request");
       py_run_cslm = py_cslm.attr("run_cslm");
     } catch(error_already_set const &) {
       PyErr_Print();
@@ -41,16 +50,11 @@ namespace Moses {
   }
   
   void CSLM::IssuePythonRequest(vector<const Word*> contextFactor) {
-    // Send a phrase to the Python module for word-id lookup
-    boost::python::list py_phrase;
+    vector<string> phrase;
     for (int i = 0; i < contextFactor.size(); i++) {
-      py_phrase.append(contextFactor[i]->GetString(0).as_string());
+      phrase.push_back(contextFactor[i]->GetString(0).as_string());
     }
-    try {
-      py_request(py_phrase);
-    } catch(error_already_set const &) {
-      PyErr_Print();
-    }
+    requests.insert(pair<vector<string>, float>(phrase, 0.0));
   }
   
   void CSLM::IssueRequestsFor(Hypothesis& hypo, const FFState* input_state) {
@@ -87,8 +91,7 @@ namespace Moses {
       }
       // Add last factor
       contextFactor.back() = &hypo.GetWord(currPos);
-      requests.push_back(contextFactor);
-      requests_count++;
+      IssuePythonRequest(contextFactor);
     }
 
     // End of sentence
@@ -120,7 +123,19 @@ namespace Moses {
   LMResult CSLM::GetValue(const vector<const Word*> &contextFactor,
                           State* finalState) const {
     LMResult ret;
-    ret.score = 0.0;
+//    pair<map<vector<const Word*>, float>::iterator, bool> map_lookup
+    vector<string> phrase;
+    for (int i = 0; i < contextFactor.size(); i++) {
+      phrase.push_back(contextFactor[i]->GetString(0).as_string());
+    }
+    map<vector<string>, float>::const_iterator map_lookup = requests.find(phrase);
+    if (map_lookup == requests.end()) {
+      // Throw an error!
+      cout << "ERROR" << endl;
+    } else {
+      ret.score = map_lookup->second;
+    }
+//    ret.score = requests.contextFactor];
     ret.unknown = false;
     
     // Get scores from sync here
@@ -139,12 +154,18 @@ namespace Moses {
     return ret;
   }
   
-  void CSLM::sync() {
-    try {
-      object scores = py_run_cslm();
-    } catch(error_already_set const &) {
-      PyErr_Print();
+  void CSLM::SyncBuffer() {
+    if (requests.size() > 0) {
+      try {
+        object scores = py_run_cslm(requests);
+      } catch(error_already_set const &) {
+        PyErr_Print();
+      }
     }
+  }
+  
+  void CSLM::ClearBuffer() {
+    requests.clear();
   }
   
 }
