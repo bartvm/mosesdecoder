@@ -154,9 +154,10 @@ private:
   std::ostream* _stream;
 };
 
-// #else
-// #error "Not supported"
-}
+#else
+#error "Not supported"
 #endif
+
+}
 
 #endif // _FDSTREAM_

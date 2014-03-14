@@ -21,6 +21,8 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 
 
 #include "ThreadPool.h"
+#include "moses/FF/FeatureFunction.h"
+#include <boost/python.hpp>
 
 #ifdef WITH_THREADS
 
@@ -36,32 +38,52 @@ ThreadPool::ThreadPool( size_t numThreads )
   for (size_t i = 0; i < numThreads; ++i) {
     m_threads.create_thread(boost::bind(&ThreadPool::Execute,this));
   }
+  // Wait for Python process to be initialized here
 }
 
 void ThreadPool::Execute()
 {
-  do {
-    Task* task = NULL;
-    {
-      // Find a job to perform
-      boost::mutex::scoped_lock lock(m_mutex);
-      if (m_tasks.empty() && !m_stopped) {
-        m_threadNeeded.wait(lock);
-      }
-      if (!m_stopped && !m_tasks.empty()) {
-        task = m_tasks.front();
-        m_tasks.pop();
-      }
+  const std::vector<FeatureFunction*> &ffs =
+  FeatureFunction::GetFeatureFunctions();
+  std::vector<FeatureFunction*>::const_iterator iter;
+  for (iter = ffs.begin(); iter != ffs.end(); ++iter) {
+    FeatureFunction *ff = *iter;
+    ff->LoadThread();
+  }
+  pid_t pid = fork();
+  if (pid == 0) {
+    const std::vector<FeatureFunction*> &ffs =
+      FeatureFunction::GetFeatureFunctions();
+    std::vector<FeatureFunction*>::const_iterator iter;
+    for (iter = ffs.begin(); iter != ffs.end(); ++iter) {
+      FeatureFunction *ff = *iter;
+      ff->LoadChild();
     }
-    //Execute job
-    if (task) {
-      task->Run();
-      if (task->DeleteAfterExecution()) {
-        delete task;
+  } else {
+    cout << "Child process PID: " << pid << endl;
+    do {
+      Task* task = NULL;
+      {
+        // Find a job to perform
+        boost::mutex::scoped_lock lock(m_mutex);
+        if (m_tasks.empty() && !m_stopped) {
+          m_threadNeeded.wait(lock);
+        }
+        if (!m_stopped && !m_tasks.empty()) {
+          task = m_tasks.front();
+          m_tasks.pop();
+        }
+      }	
+      //Execute job
+      if (task) {
+        task->Run();
+        if (task->DeleteAfterExecution()) {
+          delete task;
+        }
       }
-    }
-    m_threadAvailable.notify_all();
-  } while (!m_stopped);
+      m_threadAvailable.notify_all();
+    } while (!m_stopped);
+  }
 }
 
 void ThreadPool::Submit( Task* task )

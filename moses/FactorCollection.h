@@ -72,6 +72,7 @@ class FactorCollection
       return left.in.GetString() == right.in.GetString();
     }
   };
+  // Unordered map; FactorIDs!
   typedef boost::unordered_set<FactorFriend, HashFactor, EqualsFactor> Set;
   Set m_set;
 

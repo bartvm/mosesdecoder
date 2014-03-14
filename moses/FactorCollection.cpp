@@ -55,6 +55,7 @@ const Factor *FactorCollection::AddFactor(const StringPiece &factorString)
     ret.first->in.m_string.set(
       memcpy(m_string_backing.Allocate(factorString.size()), factorString.data(), factorString.size()),
       factorString.size());
+    // Next FactorID if it didn't exist in the unordered_map yet!
     m_factorId++;
   }
   return &ret.first->in;

@@ -52,8 +52,9 @@ public:
   virtual ~FeatureFunction();
 
   //! override to load model files
-  virtual void Load() {
-  }
+  virtual void Load() {}
+  virtual void LoadThread() {}
+  virtual void LoadChild() {}
 
   static void ResetDescriptionCounts() {
     description_counts.clear();

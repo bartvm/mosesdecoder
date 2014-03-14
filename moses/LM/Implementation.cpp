@@ -136,6 +136,7 @@ void LanguageModelImplementation::CalcScore(const Phrase &phrase, float &fullSco
 
 FFState *LanguageModelImplementation::Evaluate(const Hypothesis &hypo, const FFState *ps, ScoreComponentCollection *out) const
 {
+//  cout << "F" << endl << flush;
   // In this function, we only compute the LM scores of n-grams that overlap a
   // phrase boundary. Phrase-internal scores are taken directly from the
   // translation option.
@@ -173,9 +174,12 @@ FFState *LanguageModelImplementation::Evaluate(const Hypothesis &hypo, const FFS
   size_t endPos = std::min(startPos + GetNGramOrder() - 2
                            , currEndPos);
   for (size_t currPos = startPos + 1 ; currPos <= endPos ; currPos++) {
+//      cout << "G" << endl << flush;
     // shift all args down 1 place
-    for (size_t i = 0 ; i < GetNGramOrder() - 1 ; i++)
+      for (size_t i = 0 ; i < GetNGramOrder() - 1 ; i++) {
       contextFactor[i] = contextFactor[i + 1];
+//          cout << "H" << endl << flush;
+      }
 
     // add last factor
     contextFactor.back() = &hypo.GetWord(currPos);
@@ -195,6 +199,7 @@ FFState *LanguageModelImplementation::Evaluate(const Hypothesis &hypo, const FFS
       else
         contextFactor[i] = &hypo.GetWord((size_t)currPos);
     }
+//      cout << "I" << endl << flush;
     lmScore += GetValueForgotState(contextFactor, *res).score;
   } else {
     if (endPos < currEndPos) {
