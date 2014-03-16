@@ -78,6 +78,7 @@ namespace Moses
         virtual void IssueRequestsFor(Hypothesis& hypo,
                                       const FFState* input_state) {
         }
+        virtual void SendBuffer() {}
         virtual void SyncBuffer() {}
         virtual void ClearBuffer() {}
         virtual void SetFFStateIdx(int state_idx) {

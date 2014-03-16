@@ -148,6 +148,14 @@ ExpandHypothesis(const Hypothesis &hypothesis,
 
 void SearchNormalBatch::EvalAndMergePartialHypos()
 {
+  // Wait for all requests from the distributed LM to come back.
+  std::map<int, LanguageModel*>::iterator dlm_iter;
+  for (dlm_iter = m_dlm_ffs.begin();
+       dlm_iter != m_dlm_ffs.end();
+       ++dlm_iter) {
+    (*dlm_iter).second->SendBuffer();
+  }
+  
   std::vector<Hypothesis*>::iterator partial_hypo_iter;
   for (partial_hypo_iter = m_partial_hypos.begin();
        partial_hypo_iter != m_partial_hypos.end();
@@ -172,7 +180,6 @@ void SearchNormalBatch::EvalAndMergePartialHypos()
   }
 
   // Wait for all requests from the distributed LM to come back.
-  std::map<int, LanguageModel*>::iterator dlm_iter;
   for (dlm_iter = m_dlm_ffs.begin();
        dlm_iter != m_dlm_ffs.end();
        ++dlm_iter) {
