@@ -5,6 +5,9 @@
 #include "util/exception.hh"
 #include <iostream>
 
+#include <boost/interprocess/ipc/message_queue.hpp>
+#include "moses/LM/CSLM.h"
+
 //#include <google/profiler.h>
 
 using namespace std;
@@ -92,6 +95,19 @@ void SearchNormalBatch::ProcessSentence()
   }
 
   EvalAndMergePartialHypos();
+  
+  // PROFILING
+  // const vector<const StatefulFeatureFunction*>& ffs =
+  // StatefulFeatureFunction::GetStatefulFeatureFunctions();
+  // for (unsigned i = 0; i < ffs.size(); ++i) {
+  //   if (ffs[i]->GetScoreProducerDescription() == "CSLM") { // TODO WFT
+  //     const CSLM* cslm = dynamic_cast<const CSLM*>(ffs[i]);
+  //     boost::interprocess::message_queue moses_to_py(boost::interprocess::open_only, cslm->ThisThreadId("from").c_str());
+  //     int message = 3;
+  //     moses_to_py.send(&message, sizeof(int), 0);
+  //   }
+  // }
+  // ENDPROFILING
 }
 
 /**

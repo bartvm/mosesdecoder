@@ -25,6 +25,7 @@ namespace Moses
     std::string memory_id;
     std::string mq_to_id;
     std::string mq_from_id;
+    int pid;
     
   public:
     CSLM(const std::string &line);

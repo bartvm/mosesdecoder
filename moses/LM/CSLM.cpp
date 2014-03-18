@@ -4,6 +4,8 @@
 #include "PointerState.h"
 #include <iostream>
 #include <boost/filesystem.hpp>
+#include <sys/types.h>
+#include <signal.h>
 
 namespace Moses {
   CSLM::CSLM(const std::string &line) : LanguageModelSingleFactor(line) {
@@ -23,7 +25,6 @@ namespace Moses {
     boost::interprocess::message_queue moses_to_py(boost::interprocess::open_only, ThisThreadId("from").c_str());
     int message = 2;
     moses_to_py.send(&message, sizeof(int), 0);
-    boost::interprocess::message_queue::remove(ThisThreadId("from").c_str());
   }
   
   void CSLM::Load() {}
@@ -53,10 +54,11 @@ namespace Moses {
     
     // Setting up the managed shared memory segment; first remove old one (just in case)
     boost::interprocess::shared_memory_object::remove(ThisThreadId("memory").c_str());
-    boost::interprocess::managed_shared_memory segment(boost::interprocess::create_only, ThisThreadId("memory").c_str(), 65536);
+    boost::interprocess::managed_shared_memory segment(boost::interprocess::create_only, ThisThreadId("memory").c_str(), 419242304);
     stldb::scoped_allocation<segment_manager_t> scope(segment.get_segment_manager());
     MapType *requests = segment.construct<MapType>("MyMap")
-      (std::less<IntVector>());
+      (std::less<StringVector>());
+    //  (std::less<IntVector>());
     
     // Create the PyMoses command to execute and pipe PyMoses's stdout back to the parent
     FILE *fpipe;
@@ -107,9 +109,11 @@ namespace Moses {
     stldb::scoped_allocation<segment_manager_t> scope(segment.get_segment_manager());
     
     // Create the n-gram from factor IDs (should change to strings)
-    IntVector phrase; // Note: Using the segment.construct() command doesn't work
+    // IntVector phrase; // Note: Using the segment.construct() command doesn't work
+    StringVector phrase;
     for (int i = 0; i < contextFactor.size(); i++) {
-      phrase.push_back(contextFactor[i]->GetFactor(0)->GetId());
+      // phrase.push_back(contextFactor[i]->GetFactor(0)->GetId());
+      phrase.push_back(contextFactor[i]->GetString(0).as_string());
     }
     MapType *requests = segment.find<MapType>("MyMap").first;
     // Insert the n-gram with a placeholder score of 0.0
@@ -192,9 +196,11 @@ namespace Moses {
     // an (unordered) map?
     boost::interprocess::managed_shared_memory segment(boost::interprocess::open_only, ThisThreadId("memory").c_str());
     stldb::scoped_allocation<segment_manager_t> scope(segment.get_segment_manager());
-    IntVector phrase;
+    // IntVector phrase;
+    StringVector phrase;
     for (int i = 0; i < contextFactor.size(); i++) {
-      phrase.push_back(contextFactor[i]->GetFactor(0)->GetId());
+      // phrase.push_back(contextFactor[i]->GetFactor(0)->GetId());
+      phrase.push_back(contextFactor[i]->GetString(0).as_string());
     }
     MapType *requests = segment.find<MapType>("MyMap").first;
     ret.score = requests->at(phrase);

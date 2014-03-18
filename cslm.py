@@ -1,66 +1,57 @@
 import cPickle
 import numpy
-#import theano
+import theano
 from collections import defaultdict
 from itertools import chain
 
-#with open('europarl_best_sentence.pkl') as f:
-#    model = cPickle.load(f)
-#with open('en.vcb.pkl') as f:
-#    table = cPickle.load(f)
-#
-#input = theano.tensor.lmatrix()
-#windows = theano.tensor.lvector()
-#targets = theano.tensor.lvector()
-#f = theano.function(
-#    [input, windows, targets],
-#    theano.tensor.log10(
-#        model.fprop(input)[windows, targets]
-#    )
-#)
+#from theano import ProfileMode
+#import sys
+#sys.stdout = open('cslm-profile.txt', 'w')
+#sys.stderr = open('cslm-profile2.txt', 'w')
+#profmode = theano.ProfileMode(optimizer='fast_run', linker=theano.gof.OpWiseCLinker())
+
+with open('europarl_best_sentence.pkl') as f:
+    model = cPickle.load(f)
+with open('en.vcb.pkl') as f:
+    table = cPickle.load(f)
+
+input = theano.tensor.lmatrix()
+windows = theano.tensor.lvector()
+targets = theano.tensor.lvector()
+f = theano.function(
+    [input, windows, targets],
+    theano.tensor.log10(
+        model.fprop(input)[windows, targets]
+    )
+)
 
 def run_cslm(batch):
-#    print ngram
-#    print dir(ngram)
-#    print len(ngram)
-#    print ngram[0]
-    data = defaultdict(list)
-    for pair in batch:
-#        pair.data() = 2.0
-        ngram, score = pair.key(), pair.data()
-#        print str(batch[ngram]) + "->",
-        batch[ngram] = 2.0
-#        print str(batch[ngram]) + ", ",
-#        print type(batch)
-#        print type(batch[ngram])
-#    print ""
-#        print dir(batch)
-#        print dir(batch[ngram])
-#        break
-#        print str(batch[ngram])
-#    ngram_indices = []
-#        print "Score is " + str(score)
-#        print "Word IDs are ",
-#        for word in ngram:
-#            print word,
-#        print ""
-#        index = table.get(word, 1)
-#        if index < 10000:
-#            ngram_indices.append(index)
-#        else:
-#            ngram_indices.append(1)
-#    data[tuple(ngram_indices[:-1])].append(ngram_indices[-1])
-#    input = numpy.array(data.keys())
-#    windows = numpy.array([i for i, window in enumerate(data.iterkeys()) for j in range(len(data[window]))])
-#    targets = numpy.array([index for targets in data.itervalues() for index in targets])
-#    f(input, windows, targets)
-#    print len(input)
-#    if requests:
-#      results = list(f(numpy.array(requests, dtype='int64'),
-#                       numpy.array([targets], dtype='int64')))
-#      requests = []
-#      targets = []
-#    else:
-#        results = []
-#    return results
+    if len(batch) > 0:
+        data = defaultdict(list)
+        for pair in batch:
+            ngram, score = pair.key(), pair.data()
+            ngram_indices = []
+            for word in ngram:
+                index = table.get(word, 1)
+                if index < 10000:
+                    ngram_indices.append(index)
+                else:
+                    ngram_indices.append(1)
+            data[tuple(ngram_indices[:-1])].append((ngram_indices[-1], ngram))
+        input = numpy.array(data.keys(), dtype='int64')
+        windows = numpy.array([i for i, window in enumerate(data.iterkeys())
+                               for j in range(len(data[window]))], dtype='int64')
+        targets = numpy.array([index for targets in data.itervalues()
+                               for index, ngram in targets], dtype='int64')
+        f(input, windows, targets)
+        results = f(input, windows, targets)
+        i = 0
+        for window in data.iterkeys():
+            for target, ngram in data[window]:
+                batch[ngram] = float(results[i])
+                i += 1
+#    sys.stdout = open('cslm-profile.txt', 'w')
     return batch
+
+#def profile():
+#    profmode.print_summary()

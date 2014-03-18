@@ -739,6 +739,9 @@ int main(int argc, char** argv)
       unknownsCollector.reset(new OutputCollector(unknownsStream.get()));
     }
 
+    Timer total_translation_time;
+    total_translation_time.start();
+    
 #ifdef WITH_THREADS
     ThreadPool pool(staticData.ThreadCount());
 #endif
@@ -746,6 +749,7 @@ int main(int argc, char** argv)
     // main loop over set of input sentences
     InputType* source = NULL;
     size_t lineCount = staticData.GetStartTranslationId();
+    
     while(ReadInput(*ioWrapper,staticData.GetInputType(),source)) {
       IFVERBOSE(1) {
         ResetUserTime();
@@ -778,6 +782,9 @@ int main(int argc, char** argv)
 #ifdef WITH_THREADS
     pool.Stop(true); //flush remaining jobs
 #endif
+    
+    total_translation_time.stop();
+    std::cout << "Total translation time: " << total_translation_time.get_elapsed_time() << std::endl;
 
     delete ioWrapper;
     FeatureFunction::Destroy();

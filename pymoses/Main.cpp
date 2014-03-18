@@ -2,6 +2,7 @@
 #include "pymoses.h"
 
 boost::python::object py_run_cslm;
+boost::python::object py_profile;
 
 void RunPython(MapType *requests) {
   try {
@@ -40,13 +41,16 @@ int main(int argc, char* argv[]) {
   try {
     boost::python::object py_cslm = boost::python::import("cslm");
     py_run_cslm = py_cslm.attr("run_cslm");
+//    py_profile = py_cslm.attr("profile");
   } catch(boost::python::error_already_set const &) {
     PyErr_Print();
   }
   
   // Expose our data
-  boost::python::class_<IntVector>("IntVector")
-  .def(boost::python::vector_indexing_suite<IntVector>());
+//  boost::python::class_<IntVector>("IntVector")
+//  .def(boost::python::vector_indexing_suite<IntVector>());
+  boost::python::class_<StringVector>("StringVector")
+  .def(boost::python::vector_indexing_suite<StringVector>());
   boost::python::class_<MapType>("MapType")
   .def(boost::python::map_indexing_suite<MapType>());
   
@@ -67,7 +71,12 @@ int main(int argc, char* argv[]) {
       py_to_moses.send(&message, sizeof(int), 1);
     } else if (message == 2) {
       // Message 2 means that Moses is quitting (CSLM object destructor)
+      boost::interprocess::message_queue::remove(mq_from_id.c_str());
       exit(0);
+    // PROFILING
+    // } else if (message == 3) {
+    //  py_profile();
+    // END PROFILING
     } else {
       // Something went wrong
       exit(1);
