@@ -26,6 +26,10 @@ namespace Moses
     std::string mq_to_id;
     std::string mq_from_id;
     int pid;
+//    boost::scoped_ptr<boost::interprocess::message_queue> moses_to_py;
+//    boost::scoped_ptr<boost::interprocess::message_queue> py_to_moses;
+//    boost::shared_ptr<boost::interprocess::managed_shared_memory> segment;
+    boost::thread_specific_ptr<boost::interprocess::managed_shared_memory> segment;
     
   public:
     CSLM(const std::string &line);

@@ -51,12 +51,15 @@ namespace Moses {
     // Create new queues
     boost::interprocess::message_queue py_to_moses(boost::interprocess::create_only, ThisThreadId("to").c_str(), 1, sizeof(int));
     boost::interprocess::message_queue moses_to_py(boost::interprocess::create_only, ThisThreadId("from").c_str(), 1, sizeof(int));
+//    py_to_moses.reset(new boost::interprocess::message_queue(boost::interprocess::create_only, ThisThreadId("to").c_str(), 1, sizeof(int)));
+//    moses_to_py.reset(new boost::interprocess::message_queue(boost::interprocess::create_only, ThisThreadId("from").c_str(), 1, sizeof(int)));
     
     // Setting up the managed shared memory segment; first remove old one (just in case)
     boost::interprocess::shared_memory_object::remove(ThisThreadId("memory").c_str());
-    boost::interprocess::managed_shared_memory segment(boost::interprocess::create_only, ThisThreadId("memory").c_str(), 419242304);
-    stldb::scoped_allocation<segment_manager_t> scope(segment.get_segment_manager());
-    MapType *requests = segment.construct<MapType>("MyMap")
+//    boost::interprocess::managed_shared_memory segment(boost::interprocess::create_only, ThisThreadId("memory").c_str(), 419242304);
+    segment.reset(new boost::interprocess::managed_shared_memory(boost::interprocess::create_only, ThisThreadId("memory").c_str(), 419242304));
+    stldb::scoped_allocation<segment_manager_t> scope(segment->get_segment_manager());
+    MapType *requests = segment->construct<MapType>("MyMap")
       (std::less<StringVector>());
     //  (std::less<IntVector>());
     
@@ -105,8 +108,8 @@ namespace Moses {
     // Access memory segment, create allocator, open shared map, insert n-gram
     // Most of these things really shouldn't be done each time! See if there
     // is a more efficient way
-    boost::interprocess::managed_shared_memory segment(boost::interprocess::open_only, ThisThreadId("memory").c_str());
-    stldb::scoped_allocation<segment_manager_t> scope(segment.get_segment_manager());
+//    boost::interprocess::managed_shared_memory segment(boost::interprocess::open_only, ThisThreadId("memory").c_str());
+    stldb::scoped_allocation<segment_manager_t> scope(segment->get_segment_manager());
     
     // Create the n-gram from factor IDs (should change to strings)
     // IntVector phrase; // Note: Using the segment.construct() command doesn't work
@@ -115,7 +118,7 @@ namespace Moses {
       // phrase.push_back(contextFactor[i]->GetFactor(0)->GetId());
       phrase.push_back(contextFactor[i]->GetString(0).as_string());
     }
-    MapType *requests = segment.find<MapType>("MyMap").first;
+    MapType *requests = segment->find<MapType>("MyMap").first;
     // Insert the n-gram with a placeholder score of 0.0
     requests->insert(MapElementType(phrase, 0.0));
   }
@@ -194,15 +197,15 @@ namespace Moses {
     // n-gram creation from when the scoring request was issued; probably
     // should just save the std::vector<const Word*> and IntVector in
     // an (unordered) map?
-    boost::interprocess::managed_shared_memory segment(boost::interprocess::open_only, ThisThreadId("memory").c_str());
-    stldb::scoped_allocation<segment_manager_t> scope(segment.get_segment_manager());
+//    boost::interprocess::managed_shared_memory segment(boost::interprocess::open_only, ThisThreadId("memory").c_str());
+    stldb::scoped_allocation<segment_manager_t> scope(segment->get_segment_manager());
     // IntVector phrase;
     StringVector phrase;
     for (int i = 0; i < contextFactor.size(); i++) {
       // phrase.push_back(contextFactor[i]->GetFactor(0)->GetId());
       phrase.push_back(contextFactor[i]->GetString(0).as_string());
     }
-    MapType *requests = segment.find<MapType>("MyMap").first;
+    MapType *requests = segment->find<MapType>("MyMap").first;
     ret.score = requests->at(phrase);
     ret.unknown = false;
     
@@ -245,9 +248,9 @@ namespace Moses {
   void CSLM::ClearBuffer() {
     // All the hypotheses in this batch have been scored, so delete them from
     // the shared memory
-    boost::interprocess::managed_shared_memory segment(boost::interprocess::open_only, ThisThreadId("memory").c_str());
-    stldb::scoped_allocation<segment_manager_t> scope(segment.get_segment_manager());
-    MapType *requests = segment.find<MapType>("MyMap").first;
+//    boost::interprocess::managed_shared_memory segment(boost::interprocess::open_only, ThisThreadId("memory").c_str());
+    stldb::scoped_allocation<segment_manager_t> scope(segment->get_segment_manager());
+    MapType *requests = segment->find<MapType>("MyMap").first;
     requests->clear();
   }
   

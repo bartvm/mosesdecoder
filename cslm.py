@@ -43,7 +43,6 @@ def run_cslm(batch):
                                for j in range(len(data[window]))], dtype='int64')
         targets = numpy.array([index for targets in data.itervalues()
                                for index, ngram in targets], dtype='int64')
-        f(input, windows, targets)
         results = f(input, windows, targets)
         i = 0
         for window in data.iterkeys():
