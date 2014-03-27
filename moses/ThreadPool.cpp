@@ -30,6 +30,14 @@ using namespace Moses;
 namespace Moses
 {
 
+/**
+ * This constructor can be called by child classes
+ **/
+ThreadPool::ThreadPool()
+  : m_stopped(false), m_stopping(false), m_queueLimit(0)
+{
+}
+
 ThreadPool::ThreadPool( size_t numThreads )
   : m_stopped(false), m_stopping(false), m_queueLimit(0)
 {

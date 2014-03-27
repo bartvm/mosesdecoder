@@ -97,6 +97,15 @@ if ! [ option.get "without-tcmalloc" : : "yes" ] && [ test_library "tcmalloc_min
   echo "Tip: install tcmalloc for faster threading.  See BUILD-INSTRUCTIONS.txt for more information." ;
 }
 
+if [ option.get "enable-python" : : "yes" ] {
+  import python ;
+  using python : : /RQusagers/vanmerb/bin/python2.7 ;
+  external-lib boost_python ;
+  external-lib python2.7 ;
+  requirements += <library>python2.7 ;
+  requirements += <library>boost_python ;
+}
+
 if [ option.get "enable-mpi" : : "yes" ] {
   import mpi ;
   using mpi ;

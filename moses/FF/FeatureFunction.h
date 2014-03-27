@@ -54,6 +54,10 @@ public:
   //! override to load model files
   virtual void Load() {
   }
+  virtual void LoadThread() {
+  }
+  virtual void StopThread() {
+  }
 
   static void ResetDescriptionCounts() {
     description_counts.clear();

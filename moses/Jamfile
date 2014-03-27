@@ -12,6 +12,7 @@ if $(with-dlib) {
 
 alias headers : ../util//kenutil : : : $(max-factors) $(dlib) ; 
 alias ThreadPool : ThreadPool.cpp ;
+alias TranslationThreadPool : TranslationThreadPool.cpp ;
 alias Util : Util.cpp Timer.cpp ;
 
 if [ option.get "with-synlm" : no : yes ] = yes
@@ -56,11 +57,12 @@ lib moses :
   FF/LexicalReordering/*.cpp
 : #exceptions
   ThreadPool.cpp
+  TranslationThreadPool.cpp
   SyntacticLanguageModel.cpp
   *Test.cpp Mock*.cpp
   FF/Factory.cpp
 ]
-headers FF_Factory.o LM//LM TranslationModel/CompactPT//CompactPT synlm ThreadPool
+headers FF_Factory.o LM//LM TranslationModel/CompactPT//CompactPT synlm ThreadPool TranslationThreadPool
 ..//search ../util/double-conversion//double-conversion ..//z ../OnDiskPt//OnDiskPt 
 $(TOP)//boost_iostreams 
 :

@@ -89,14 +89,20 @@ public:
     m_queueLimit = limit;
   }
 
-private:
+protected:
+  explicit ThreadPool();
+
   /**
    * The main loop executed by each thread.
+   * Made public so that it can be called by child classes.
    **/
   void Execute();
 
-  std::queue<Task*> m_tasks;
+  // Public thread group so that the child class can start new threads
   boost::thread_group m_threads;
+
+private:
+  std::queue<Task*> m_tasks;
   boost::mutex m_mutex;
   boost::condition_variable m_threadNeeded;
   boost::condition_variable m_threadAvailable;

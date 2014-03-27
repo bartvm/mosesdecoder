@@ -52,6 +52,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 #include "moses/Util.h"
 #include "moses/Timer.h"
 #include "moses/ThreadPool.h"
+#include "moses/TranslationThreadPool.h"
 #include "moses/OutputCollector.h"
 #include "moses/TranslationModel/PhraseDictionary.h"
 #include "moses/FF/StatefulFeatureFunction.h"
@@ -743,7 +744,7 @@ int main(int argc, char** argv)
     }
 
 #ifdef WITH_THREADS
-    ThreadPool pool(staticData.ThreadCount());
+    TranslationThreadPool pool(staticData.ThreadCount());
 #endif
 
     // main loop over set of input sentences
