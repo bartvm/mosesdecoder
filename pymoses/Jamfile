@@ -1,0 +1,12 @@
+# Based of Boost.Python examples' quickstart
+import python ;
+using python : 2.7 : /RQusagers/vanmerb/bin/python2.7 ;
+external-lib boost_python ;
+
+project pymoses
+  : requirements <library>boost_python
+  ;
+
+# Adding the <link>shared is VERY important
+exe pymoses : Main.cpp /python//python/<link>shared ;
+
