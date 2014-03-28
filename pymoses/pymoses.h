@@ -3,9 +3,6 @@
 #include <boost/interprocess/allocators/allocator.hpp>
 #include <boost/interprocess/containers/map.hpp>
 #include <boost/interprocess/containers/vector.hpp>
-#include <boost/python.hpp>
-#include <boost/python/suite/indexing/map_indexing_suite.hpp>
-#include <boost/python/suite/indexing/vector_indexing_suite.hpp>
 
 #include "scope_aware_allocator.h"
 #include "scoped_allocation.h"
@@ -26,17 +23,18 @@ typedef boost::interprocess::managed_shared_memory::segment_manager segment_mana
 typedef stldb::scope_aware_allocator<boost::interprocess::allocator<void, segment_manager_t> > VoidAllocator;
 
 // Here we create an allocater for the integer vector (the n-grams)
-//typedef stldb::scope_aware_allocator<boost::interprocess::allocator<int, segment_manager_t> > IntAllocator;
-//typedef boost::interprocess::vector<int, IntAllocator> IntVector;
 typedef stldb::scope_aware_allocator<boost::interprocess::allocator<std::string, segment_manager_t> > StringAllocator;
 typedef boost::interprocess::vector<std::string, StringAllocator> StringVector;
 
 // The elements of the map take the form of a pair,
 // which needs an allocator as well
-//typedef std::pair<const IntVector, float> MapElementType;
-//typedef stldb::scope_aware_allocator<boost::interprocess::allocator<MapElementType, segment_manager_t> > MapElementAllocator;
-//typedef boost::interprocess::map<IntVector, float, std::less<IntVector>, MapElementAllocator> MapType;
 typedef std::pair<const StringVector, float> MapElementType;
 typedef stldb::scope_aware_allocator<boost::interprocess::allocator<MapElementType, segment_manager_t> > MapElementAllocator;
 typedef boost::interprocess::map<StringVector, float, std::less<StringVector>, MapElementAllocator> MapType;
 
+// These are the typedefs for vectors of ints instead of strings
+//typedef stldb::scope_aware_allocator<boost::interprocess::allocator<int, segment_manager_t> > IntAllocator;
+//typedef boost::interprocess::vector<int, IntAllocator> IntVector;
+//typedef std::pair<const IntVector, float> MapElementType;
+//typedef stldb::scope_aware_allocator<boost::interprocess::allocator<MapElementType, segment_manager_t> > MapElementAllocator;
+//typedef boost::interprocess::map<IntVector, float, std::less<IntVector>, MapElementAllocator> MapType;

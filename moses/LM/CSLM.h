@@ -3,12 +3,9 @@
 
 #include <vector>
 #include "SingleFactor.h"
-#include <boost/thread/thread.hpp> // Remove this, only for printing Thread ID
-#include <boost/interprocess/managed_shared_memory.hpp>
-#include <boost/interprocess/ipc/message_queue.hpp>
-#include <boost/thread/tss.hpp>
 #include <boost/lexical_cast.hpp>
-#include <boost/make_shared.hpp>
+#include <boost/filesystem.hpp>
+#include "pymoses/pymoses.h"
 
 namespace Moses
 {
@@ -26,6 +23,13 @@ public:
   ~CSLM();
   void LoadThread();
   void StopThread();
+
+  void IssuePythonRequest(std::vector<const Word*>);
+  void IssueRequestsFor(Hypothesis& hypo, const FFState* input_state);
+
+  void SendBuffer();
+  void SyncBuffer();
+  void ClearBuffer();
 
   virtual LMResult GetValue(const std::vector<const Word*> &contextFactor, State* finalState = 0) const;
 };

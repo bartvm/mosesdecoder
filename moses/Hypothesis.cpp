@@ -276,6 +276,12 @@ void Hypothesis::Evaluate(const SquareMatrix &futureScore)
   }
 }
 
+void Hypothesis::CalcTotalScore(const SquareMatrix &futureScore)
+{
+  m_futureScore = futureScore.CalcFutureScore( m_sourceCompleted );
+  m_totalScore = m_scoreBreakdown.GetWeightedScore() + m_futureScore;
+}
+
 const Hypothesis* Hypothesis::GetPrevHypo()const
 {
   return m_prevHypo;
