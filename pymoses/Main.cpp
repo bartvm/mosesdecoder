@@ -85,6 +85,7 @@ int main(int argc, char* argv[]) {
       exit(0);
     } else {
       // Something went wrong
+      boost::interprocess::message_queue::remove(mq_from_id.c_str());
       exit(1);
     }
   }
