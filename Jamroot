@@ -97,15 +97,6 @@ if ! [ option.get "without-tcmalloc" : : "yes" ] && [ test_library "tcmalloc_min
   echo "Tip: install tcmalloc for faster threading.  See BUILD-INSTRUCTIONS.txt for more information." ;
 }
 
-if [ option.get "enable-python" : : "yes" ] {
-  import python ;
-  using python : : /RQusagers/vanmerb/bin/python2.7 ;
-  external-lib boost_python ;
-  external-lib python2.7 ;
-  requirements += <library>python2.7 ;
-  requirements += <library>boost_python ;
-}
-
 if [ option.get "enable-mpi" : : "yes" ] {
   import mpi ;
   using mpi ;
@@ -149,7 +140,7 @@ project : requirements
   ;
 
 #Add directories here if you want their incidental targets too (i.e. tests).
-build-projects lm util phrase-extract search moses moses/LM mert moses-cmd moses-chart-cmd mira scripts regression-testing  ;
+build-projects pymoses lm util phrase-extract search moses moses/LM mert moses-cmd moses-chart-cmd mira scripts regression-testing  ;
 
 if [ option.get "with-mm" : : "yes" ]
 {
@@ -169,6 +160,7 @@ else
 }
 
 alias programs : 
+pymoses
 lm//programs 
 moses-chart-cmd//moses_chart 
 moses-cmd//programs 
