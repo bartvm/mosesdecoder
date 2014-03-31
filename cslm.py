@@ -4,7 +4,7 @@ import theano
 from collections import defaultdict
 from itertools import chain
 
-with open('europarl_best_sentence.pkl') as f:
+with open('europarl_best_sentence_cpu_calar.pkl') as f:
     model = cPickle.load(f)
 with open('en.vcb.pkl') as f:
     table = cPickle.load(f)
@@ -46,3 +46,8 @@ def run_cslm(batch):
                 i += 1
     return batch
 
+def run_cslm_test():
+    print "Running test"
+    f(numpy.array([[1, 2, 3, 4, 5, 6]]), numpy.array([0]), numpy.array([0]))
+    print "Finished test"
+    return True

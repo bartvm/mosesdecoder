@@ -3,6 +3,8 @@
 
 #include "ThreadPool.h"
 #include "FF/FeatureFunction.h"
+#include "moses/StaticData.h"
+#include "moses/Util.h"
 
 namespace Moses
 {

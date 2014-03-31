@@ -22,7 +22,7 @@ typedef boost::interprocess::managed_shared_memory::segment_manager segment_mana
 // This is created because it can be cast to all the other allocators
 typedef stldb::scope_aware_allocator<boost::interprocess::allocator<void, segment_manager_t> > VoidAllocator;
 
-// Here we create an allocater for the integer vector (the n-grams)
+// Here we create an allocater for the string vector (the n-grams)
 typedef stldb::scope_aware_allocator<boost::interprocess::allocator<std::string, segment_manager_t> > StringAllocator;
 typedef boost::interprocess::vector<std::string, StringAllocator> StringVector;
 

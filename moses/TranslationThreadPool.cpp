@@ -25,7 +25,9 @@ namespace Moses
       FeatureFunction *ff = *iter;
       ff->LoadThread();
     }
+    VERBOSE(1, "Starting translation thread");
     ThreadPool::Execute();
+    VERBOSE(1, "Closing translation thread");
     for (iter = ffs.begin(); iter != ffs.end(); ++iter) {
       FeatureFunction *ff = *iter;
       ff->StopThread();
