@@ -30,8 +30,9 @@ namespace Moses {
     // through a function like this seems to work (note: using a
     // thread_shared_ptr isn't any better and results in double free,
     // corruption, wrong pointers, and more!)
-    return prefix +
-      boost::lexical_cast<std::string>(boost::this_thread::get_id());
+    std::stringstream ss;
+    ss << prefix << pthread_self();
+    return ss.str();
   }
 
   void CSLM::StopThread() {
@@ -53,6 +54,10 @@ namespace Moses {
   }
 
   void CSLM::LoadThread() {
+    // Getting a random ID for this thread
+    // boost::random::random_device rng;
+    // thread_id.reset((unsigned int*)rng());
+
     // Setting up message queues
     // 0 signals READY
     // 1 signals NEXT
@@ -75,8 +80,7 @@ namespace Moses {
       419242304
     ));
     stldb::scoped_allocation<segment_manager_t> scope(segment->get_segment_manager());
-    // Remove requests variable (leave construct)?
-    segment->construct<MapType>("MyMap")(std::less<StringVector>());
+    segment->construct<MapType>("MyMap")(std::less<IntVector>());
 
     // Create the PyMoses command to execute and pipe PyMoses's stdout back to the parent
     FILE *fpipe;
@@ -128,10 +132,10 @@ namespace Moses {
 
     // Create the n-gram from factor IDs
     // Note: Using the segment.construct() command doesn't work
-    StringVector phrase;
+    IntVector phrase;
+    // StringVector *phrase = segment.construct<StringVector>("MyPhrase")();
     for (unsigned int i = 0; i < contextFactor.size(); i++) {
-      // phrase.push_back(contextFactor[i]->GetFactor(0)->GetId());
-      phrase.push_back(contextFactor[i]->GetString(0).as_string());
+      phrase.push_back(contextFactor[i]->GetFactor(0)->GetId());
     }
     MapType *requests = segment->find<MapType>("MyMap").first;
     // Insert the n-gram with a placeholder score of 0.0
@@ -215,9 +219,9 @@ namespace Moses {
     stldb::scoped_allocation<segment_manager_t> scope(
       segment->get_segment_manager()
     );
-    StringVector phrase;
+    IntVector phrase;
     for (unsigned int i = 0; i < contextFactor.size(); i++) {
-      phrase.push_back(contextFactor[i]->GetString(0).as_string());
+      phrase.push_back(contextFactor[i]->GetFactor(0)->GetId());
     }
     MapType *requests = segment->find<MapType>("MyMap").first;
     ret.score = requests->at(phrase);
@@ -247,7 +251,7 @@ namespace Moses {
   void CSLM::SyncBuffer() {
     // Here we wait for the child process to finish scoring before we read out
     // the scores from shared memory
-    int message;
+    int message = 0;
     boost::interprocess::message_queue::size_type recvd_size;
     unsigned int priority;
     py_to_moses->receive(&message, sizeof(message), recvd_size, priority);
@@ -255,6 +259,8 @@ namespace Moses {
       VERBOSE(1, "Received wrong message from PyMoses while waiting for eval"
                  << endl);
       exit(1);
+    } else {
+      VERBOSE(1, "Python scoring completed" << endl);
     }
   }
 
@@ -269,6 +275,4 @@ namespace Moses {
   }
 
 }
-
-
 

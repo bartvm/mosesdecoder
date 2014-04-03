@@ -19,22 +19,16 @@
 // http://sourceforge.net/p/stldb/code/HEAD/tree/branches/r1.2/stldb_lib/stldb/allocators/
 
 typedef boost::interprocess::managed_shared_memory::segment_manager segment_manager_t;
-// This is created because it can be cast to all the other allocators
+// This is created because it can be cast to all the other allocators (still needed?)
 typedef stldb::scope_aware_allocator<boost::interprocess::allocator<void, segment_manager_t> > VoidAllocator;
 
 // Here we create an allocater for the string vector (the n-grams)
 typedef stldb::scope_aware_allocator<boost::interprocess::allocator<std::string, segment_manager_t> > StringAllocator;
 typedef boost::interprocess::vector<std::string, StringAllocator> StringVector;
 
-// The elements of the map take the form of a pair,
-// which needs an allocator as well
-typedef std::pair<const StringVector, float> MapElementType;
+// The elements of the map take the form of a pair, which needs an allocator as well
+typedef stldb::scope_aware_allocator<boost::interprocess::allocator<int, segment_manager_t> > IntAllocator;
+typedef boost::interprocess::vector<int, IntAllocator> IntVector;
+typedef std::pair<const IntVector, float> MapElementType;
 typedef stldb::scope_aware_allocator<boost::interprocess::allocator<MapElementType, segment_manager_t> > MapElementAllocator;
-typedef boost::interprocess::map<StringVector, float, std::less<StringVector>, MapElementAllocator> MapType;
-
-// These are the typedefs for vectors of ints instead of strings
-//typedef stldb::scope_aware_allocator<boost::interprocess::allocator<int, segment_manager_t> > IntAllocator;
-//typedef boost::interprocess::vector<int, IntAllocator> IntVector;
-//typedef std::pair<const IntVector, float> MapElementType;
-//typedef stldb::scope_aware_allocator<boost::interprocess::allocator<MapElementType, segment_manager_t> > MapElementAllocator;
-//typedef boost::interprocess::map<IntVector, float, std::less<IntVector>, MapElementAllocator> MapType;
+typedef boost::interprocess::map<IntVector, float, std::less<IntVector>, MapElementAllocator> MapType;
