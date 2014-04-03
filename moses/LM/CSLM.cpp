@@ -133,7 +133,6 @@ namespace Moses {
     // Create the n-gram from factor IDs
     // Note: Using the segment.construct() command doesn't work
     IntVector phrase;
-    // StringVector *phrase = segment.construct<StringVector>("MyPhrase")();
     for (unsigned int i = 0; i < contextFactor.size(); i++) {
       if(contextFactor[i]->GetFactor(1)) {
         int cslm_id = boost::lexical_cast<int>(
@@ -228,7 +227,14 @@ namespace Moses {
     );
     IntVector phrase;
     for (unsigned int i = 0; i < contextFactor.size(); i++) {
-      phrase.push_back(contextFactor[i]->GetFactor(0)->GetId());
+      if(contextFactor[i]->GetFactor(1)) {
+        int cslm_id = boost::lexical_cast<int>(
+          contextFactor[i]->GetString(1).as_string()
+        );
+        phrase.push_back(cslm_id);
+      } else {
+        phrase.push_back(1);
+      }
     }
     MapType *requests = segment->find<MapType>("MyMap").first;
     ret.score = requests->at(phrase);
