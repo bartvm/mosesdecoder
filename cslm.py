@@ -5,8 +5,6 @@ from collections import defaultdict
 
 with open('europarl_best_sentence_cpu_calar.pkl') as f:
     model = cPickle.load(f)
-with open('en.vcb.pkl') as f:
-    table = cPickle.load(f)
 
 input = theano.tensor.lmatrix()
 windows = theano.tensor.lvector()
@@ -27,11 +25,7 @@ def run_cslm(batch):
             ngram, score = pair.key(), pair.data()
             ngram_indices = []
             for word in ngram:
-                index = table.get(word, 1)
-                if index < 10000:
-                    ngram_indices.append(index)
-                else:
-                    ngram_indices.append(1)
+                ngram_indices.append(int(word))
             data[tuple(ngram_indices[:-1])].append((ngram_indices[-1], ngram))
         input = numpy.array(data.keys(), dtype='int64')
         windows = numpy.array([i for i, window in enumerate(data.iterkeys())
