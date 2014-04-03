@@ -38,6 +38,5 @@ def run_cslm(batch):
         for window in data.iterkeys():
             for target, ngram in data[window]:
                 batch[ngram] = float(results[i])
-                print results[i]
                 i += 1
     return batch
