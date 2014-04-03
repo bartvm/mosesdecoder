@@ -15,10 +15,14 @@ namespace Moses {
 
     // needed by parent language model classes. Why didn't they set these themselves?
     m_sentenceStart = factorCollection.AddFactor(Output, m_factorType, BOS_);
+    m_sentenceStart_CSLM = factorCollection.AddFactor(Output, 1, "0");
     m_sentenceStartWord[m_factorType] = m_sentenceStart;
+    m_sentenceStartWord[1] = m_sentenceStart_CSLM;
 
     m_sentenceEnd		= factorCollection.AddFactor(Output, m_factorType, EOS_);
+    m_sentenceEnd_CSLM = factorCollection.AddFactor(Output, 1, "0");
     m_sentenceEndWord[m_factorType] = m_sentenceEnd;
+    m_sentenceEndWord[1] = m_sentenceEnd_CSLM;
   }
 
   CSLM::~CSLM() {}
@@ -40,10 +44,6 @@ namespace Moses {
     VERBOSE(1, "Removing message queues" << endl);
     int message = 2;
     moses_to_py->send(&message, sizeof(int), 0);
-    /**
-     * TODO: Let child process remove message queues instead
-     */
-    boost::interprocess::message_queue::remove(ThisThreadId("from").c_str());
     boost::interprocess::message_queue::remove(ThisThreadId("to").c_str());
 
     // Clean up shared memory
@@ -135,7 +135,14 @@ namespace Moses {
     IntVector phrase;
     // StringVector *phrase = segment.construct<StringVector>("MyPhrase")();
     for (unsigned int i = 0; i < contextFactor.size(); i++) {
-      phrase.push_back(contextFactor[i]->GetFactor(0)->GetId());
+      if(contextFactor[i]->GetFactor(1)) {
+        int cslm_id = boost::lexical_cast<int>(
+          contextFactor[i]->GetString(1).as_string()
+        );
+        phrase.push_back(cslm_id);
+      } else {
+        phrase.push_back(1);
+      }
     }
     MapType *requests = segment->find<MapType>("MyMap").first;
     // Insert the n-gram with a placeholder score of 0.0

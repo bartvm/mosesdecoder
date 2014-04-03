@@ -747,9 +747,6 @@ int main(int argc, char** argv)
     TranslationThreadPool pool(staticData.ThreadCount());
 #endif
 
-    Timer total_translation_time;
-    total_translation_time.start();
-
     // main loop over set of input sentences
     InputType* source = NULL;
     size_t lineCount = staticData.GetStartTranslationId();
@@ -785,9 +782,6 @@ int main(int argc, char** argv)
 #ifdef WITH_THREADS
     pool.Stop(true); //flush remaining jobs
 #endif
-
-    total_translation_time.stop();
-    VERBOSE(1, "Complete translation took " << total_translation_time.get_elapsed_time() << " seconds total" << endl);
 
     delete ioWrapper;
     FeatureFunction::Destroy();

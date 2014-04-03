@@ -2,15 +2,11 @@
 import python ;
 using python : 2.7 : /RQusagers/vanmerb/bin/python2.7 ;
 external-lib boost_python ;
-external-lib python2.7 ;
 
 project pymoses
   : requirements <library>boost_python
-                 <library>python2.7
   ;
 
 # Adding the <link>shared is VERY important
 exe pymoses : Main.cpp /python//python/<link>shared ;
-
-# exe pymoses_test : Test.cpp /python//python/<link>shared ;
 

@@ -26,7 +26,9 @@ namespace Moses
       ff->LoadThread();
     }
     VERBOSE(1, "Starting translation thread");
+    // This is where we should start timing
     ThreadPool::Execute();
+    // And end timing here
     VERBOSE(1, "Closing translation thread");
     for (iter = ffs.begin(); iter != ffs.end(); ++iter) {
       FeatureFunction *ff = *iter;

@@ -18,6 +18,8 @@ protected:
   boost::thread_specific_ptr<boost::interprocess::message_queue> moses_to_py;
   std::string ThisThreadId(std::string prefix) const;
 
+  const Factor *m_sentenceStart_CSLM, *m_sentenceEnd_CSLM;
+
 public:
   CSLM(const std::string &line);
   ~CSLM();
