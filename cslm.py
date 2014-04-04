@@ -3,7 +3,7 @@ import numpy
 import theano
 from collections import defaultdict
 
-with open('europarl_best_sentence_cpu_calar.pkl') as f:
+with open('europarl_cslm_cpu.pkl') as f:
     model = cPickle.load(f)
 
 input = theano.tensor.lmatrix()
