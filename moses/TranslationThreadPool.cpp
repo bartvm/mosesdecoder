@@ -1,4 +1,5 @@
 #include "TranslationThreadPool.h"
+#include "Timer.h"
 
 #ifdef WITH_THREADS
 
@@ -26,10 +27,12 @@ namespace Moses
       ff->LoadThread();
     }
     VERBOSE(1, "Starting translation thread" << endl);
-    // This is where we should start timing
+    Timer thread_timer;
+    thread_timer.start();
     ThreadPool::Execute();
-    // And end timing here
-    VERBOSE(1, "Closing translation thread" << endl);
+    thread_timer.stop();
+    VERBOSE(1, "Closing translation thread, took " << thread_timer
+               << " seconds" << endl);
     for (iter = ffs.begin(); iter != ffs.end(); ++iter) {
       FeatureFunction *ff = *iter;
       ff->StopThread();

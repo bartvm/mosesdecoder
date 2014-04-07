@@ -65,18 +65,18 @@ namespace Moses {
     // other ERROR
     VERBOSE(1, "Setting up message queues" << endl);
     py_to_moses.reset(new boost::interprocess::message_queue(
-      boost::interprocess::create_only, ThisThreadId("to").c_str(),
+      boost::interprocess::open_or_create, ThisThreadId("to").c_str(),
       1, sizeof(int))
     );
     moses_to_py.reset(new boost::interprocess::message_queue(
-      boost::interprocess::create_only, ThisThreadId("from").c_str(),
+      boost::interprocess::open_or_create, ThisThreadId("from").c_str(),
       1, sizeof(int))
     );
 
     // Setting up the managed shared memory segment
     VERBOSE(1, "Setting up shared memory" << endl);
     segment.reset(new boost::interprocess::managed_shared_memory(
-      boost::interprocess::create_only, ThisThreadId("memory").c_str(),
+      boost::interprocess::open_or_create, ThisThreadId("memory").c_str(),
       419242304
     ));
     stldb::scoped_allocation<segment_manager_t> scope(segment->get_segment_manager());
