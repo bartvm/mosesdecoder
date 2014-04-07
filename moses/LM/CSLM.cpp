@@ -285,6 +285,7 @@ namespace Moses {
     );
     MapType *requests = segment->find<MapType>("MyMap").first;
     requests->clear();
+    score_map->clear();
   }
 
 }
