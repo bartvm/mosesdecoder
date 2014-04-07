@@ -80,7 +80,8 @@ namespace Moses {
       419242304
     ));
     stldb::scoped_allocation<segment_manager_t> scope(segment->get_segment_manager());
-    segment->construct<MapType>("MyMap")(std::less<IntVector>());
+    MapType* requests = segment->find_or_construct<MapType>("MyMap")(std::less<IntVector>());
+    requests->clear();
 
     score_map.reset(
       new boost::unordered_map<std::vector<const Word*>, IntVector>()
