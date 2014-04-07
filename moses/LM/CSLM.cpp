@@ -135,10 +135,18 @@ namespace Moses {
     IntVector phrase;
     for (unsigned int i = 0; i < contextFactor.size(); i++) {
       if(contextFactor[i]->GetFactor(1)) {
-        int cslm_id = boost::lexical_cast<int>(
-          contextFactor[i]->GetString(1).as_string()
-        );
-        phrase.push_back(cslm_id);
+        try {
+          int cslm_id = boost::lexical_cast<int>(
+            contextFactor[i]->GetString(1).as_string()
+          );
+          phrase.push_back(cslm_id);
+        } catch (const boost::bad_lexical_cast& e) {
+          phrase.push_back(1);
+          VERBOSE(1, "Python error: Got non-integer CSLM ID, defaulted to 1 ('"
+                      << contextFactor[i]->GetString(1).as_string()
+                      << "' for word '"
+                      << contextFactor[i]->GetString(0).as_string() << "')");
+        }
       } else {
         phrase.push_back(1);
       }
