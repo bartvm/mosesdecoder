@@ -154,6 +154,7 @@ namespace Moses {
     MapType *requests = segment->find<MapType>("MyMap").first;
     // Insert the n-gram with a placeholder score of 0.0
     requests->insert(MapElementType(phrase, 0.0));
+    score_map->insert(std::make_pair(contextFactor, phrase));
   }
 
   void CSLM::IssueRequestsFor(Hypothesis& hypo, const FFState* input_state) {
@@ -230,22 +231,8 @@ namespace Moses {
     // n-gram creation from when the scoring request was issued; probably
     // should just save the std::vector<const Word*> and IntVector in
     // an (unordered) map?
-    stldb::scoped_allocation<segment_manager_t> scope(
-      segment->get_segment_manager()
-    );
-    IntVector phrase;
-    for (unsigned int i = 0; i < contextFactor.size(); i++) {
-      if(contextFactor[i]->GetFactor(1)) {
-        int cslm_id = boost::lexical_cast<int>(
-          contextFactor[i]->GetString(1).as_string()
-        );
-        phrase.push_back(cslm_id);
-      } else {
-        phrase.push_back(1);
-      }
-    }
     MapType *requests = segment->find<MapType>("MyMap").first;
-    ret.score = requests->at(phrase);
+    ret.score = requests->at(score_map->at(contextFactor));
     ret.unknown = false;
 
     // Use last word as state info
