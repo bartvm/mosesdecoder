@@ -82,6 +82,10 @@ namespace Moses {
     stldb::scoped_allocation<segment_manager_t> scope(segment->get_segment_manager());
     segment->construct<MapType>("MyMap")(std::less<IntVector>());
 
+    score_map.reset(
+      new boost::unordered_map<std::vector<const Word*>, IntVector>()
+    );
+
     // Create the PyMoses command to execute and pipe PyMoses's stdout back to the parent
     FILE *fpipe;
     boost::filesystem::path cwd(boost::filesystem::current_path());
@@ -145,7 +149,8 @@ namespace Moses {
           VERBOSE(1, "Python error: Got non-integer CSLM ID, defaulted to 1 ('"
                       << contextFactor[i]->GetString(1).as_string()
                       << "' for word '"
-                      << contextFactor[i]->GetString(0).as_string() << "')");
+                      << contextFactor[i]->GetString(0).as_string() << "')"
+                      << endl);
         }
       } else {
         phrase.push_back(1);
