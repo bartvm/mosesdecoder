@@ -17,7 +17,7 @@ protected:
   boost::thread_specific_ptr<boost::interprocess::managed_shared_memory> segment;
   boost::thread_specific_ptr<boost::interprocess::message_queue> py_to_moses;
   boost::thread_specific_ptr<boost::interprocess::message_queue> moses_to_py;
-  boost::thread_specific_ptr<boost::unordered_map<std::vector<const Word*>, IntVector> > score_map;
+  boost::thread_specific_ptr<std::unordered_map<std::vector<const Word*>, IntVector> > score_map;
   std::string ThisThreadId(std::string prefix) const;
 
   const Factor *m_sentenceStart_CSLM, *m_sentenceEnd_CSLM;
