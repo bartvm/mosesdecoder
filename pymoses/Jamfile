@@ -1,6 +1,6 @@
 # Based of Boost.Python examples' quickstart
 import python ;
-using python : 2.7 : /RQusagers/vanmerb/bin/python2.7 ;
+using python : 2.7 : /home/apps/Logiciels/Python/python-2.7.2/bin/python ;
 external-lib boost_python ;
 
 project pymoses
