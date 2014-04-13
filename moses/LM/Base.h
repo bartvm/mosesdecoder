@@ -78,7 +78,11 @@ public:
   virtual void IssueRequestsFor(Hypothesis& hypo,
                                 const FFState* input_state) {
   }
-  virtual void sync() {
+  virtual void SyncBuffer() {
+  }
+  virtual void SendBuffer() {
+  }
+  virtual void ClearBuffer() {
   }
   virtual void SetFFStateIdx(int state_idx) {
   }
