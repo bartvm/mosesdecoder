@@ -177,7 +177,6 @@ void SearchNormalBatch::EvalAndMergePartialHypos()
   }
 
   // Wait for all requests from the distributed LM to come back.
-  std::map<int, LanguageModel*>::iterator dlm_iter;
   for (dlm_iter = m_dlm_ffs.begin();
        dlm_iter != m_dlm_ffs.end();
        ++dlm_iter) {
