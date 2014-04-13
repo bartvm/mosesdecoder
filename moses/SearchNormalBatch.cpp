@@ -21,7 +21,7 @@ SearchNormalBatch::SearchNormalBatch(Manager& manager, const InputType &source, 
   const vector<const StatefulFeatureFunction*>& ffs =
     StatefulFeatureFunction::GetStatefulFeatureFunctions();
   for (unsigned i = 0; i < ffs.size(); ++i) {
-    if (ffs[i]->GetScoreProducerDescription() == "DLM_5gram") { // TODO WFT
+    if (ffs[i]->GetScoreProducerDescription() == "CSLM") { // TODO WFT
       m_dlm_ffs[i] = const_cast<LanguageModel*>(static_cast<const LanguageModel* const>(ffs[i]));
       m_dlm_ffs[i]->SetFFStateIdx(i);
     } else {
@@ -146,6 +146,13 @@ ExpandHypothesis(const Hypothesis &hypothesis,
 
 void SearchNormalBatch::EvalAndMergePartialHypos()
 {
+  // This releases the buffer and sends the request to Python
+  std::map<int, LanguageModel*>::iterator dlm_iter;
+  for (dlm_iter = m_dlm_ffs.begin();
+       dlm_iter != m_dlm_ffs.end();
+       ++dlm_iter) {
+    (*dlm_iter).second->SendBuffer();
+  }
   std::vector<Hypothesis*>::iterator partial_hypo_iter;
   for (partial_hypo_iter = m_partial_hypos.begin();
        partial_hypo_iter != m_partial_hypos.end();
@@ -174,7 +181,7 @@ void SearchNormalBatch::EvalAndMergePartialHypos()
   for (dlm_iter = m_dlm_ffs.begin();
        dlm_iter != m_dlm_ffs.end();
        ++dlm_iter) {
-    (*dlm_iter).second->sync();
+    (*dlm_iter).second->SyncBuffer();
   }
 
   // Incorporate the DLM scores into all hypotheses and put into their
@@ -192,10 +199,18 @@ void SearchNormalBatch::EvalAndMergePartialHypos()
       LanguageModel &lm = *(dlm_iter->second);
       hypo->EvaluateWith(lm, (*dlm_iter).first);
     }
+    // Add up all the scores
+    hypo->CalcTotalScore(m_transOptColl.GetFutureScore());
 
     // Put completed hypothesis onto its stack.
     size_t wordsTranslated = hypo->GetWordsBitmap().GetNumWordsCovered();
     m_hypoStackColl[wordsTranslated]->AddPrune(hypo);
+  }
+  // Clear the buffers
+  for (dlm_iter = m_dlm_ffs.begin();
+       dlm_iter != m_dlm_ffs.end();
+       ++dlm_iter) {
+    (*dlm_iter).second->ClearBuffer();
   }
   m_partial_hypos.clear();
 

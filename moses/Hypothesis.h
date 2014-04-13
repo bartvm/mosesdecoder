@@ -139,6 +139,8 @@ public:
 
   void Evaluate(const SquareMatrix &futureScore);
 
+  void CalcTotalScore(const SquareMatrix &futureScore);
+
   int GetId()const {
     return m_id;
   }
