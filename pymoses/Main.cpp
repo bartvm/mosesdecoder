@@ -28,6 +28,7 @@
 #define IFVERBOSE(level)
 
 boost::python::object py_run_cslm;
+boost::python::object py_cslm; 
 
 int main(int argc, char* argv[]) {
   // These are the names to access the message queues and shared memory
@@ -52,7 +53,7 @@ int main(int argc, char* argv[]) {
   VERBOSE(1, "Starting Python for thread " << thread_id << std::endl);
   Py_Initialize();
   try {
-    boost::python::object py_cslm = boost::python::import("cslm");
+    py_cslm = boost::python::import("cslm");
     py_run_cslm = py_cslm.attr("run_cslm");
   } catch(boost::python::error_already_set const &) {
     // Print the error and signal Moses that something is wrong!
@@ -80,7 +81,7 @@ int main(int argc, char* argv[]) {
     message = 0;
     moses_to_py.receive(&message, sizeof(message), recvd_size, priority);
     if (message == 1) {
-      VERBOSE(1, "Python started scoring..." << std::endl);
+      // VERBOSE(3, "Python started scoring..." << std::endl);
       // Message 1 means that a batch is ready to be scored
       try {
         // Run the Python method, read out the scores and save them in shared memory
@@ -98,6 +99,12 @@ int main(int argc, char* argv[]) {
       py_to_moses.send(&message, sizeof(int), 0);
     } else if (message == 2) {
       // Message 2 means that Moses is quitting (CSLM object destructor)
+      try {
+        boost::python::object py_profile = py_cslm.attr("profile");
+        py_profile();
+      } catch(boost::python::error_already_set const &) {
+        PyErr_Print();
+      }
       VERBOSE(1, "Stopping Python, destroying message queue" << std::endl);
       boost::interprocess::message_queue::remove(mq_from_id.c_str());
       exit(0);

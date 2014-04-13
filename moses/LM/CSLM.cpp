@@ -110,7 +110,6 @@ namespace Moses {
       } else {
         VERBOSE(1, "PyMoses sent bad message!" << endl);
         StopThread();
-        exit(1);
       }
     } else if (pid == 0) {
       // CHILD PROCESS; Start pymoses and pipe the results back
@@ -147,7 +146,7 @@ namespace Moses {
           phrase.push_back(cslm_id);
         } catch (const boost::bad_lexical_cast& e) {
           phrase.push_back(1);
-          VERBOSE(1, "Python error: Got non-integer CSLM ID, defaulted to 1 ('"
+          VERBOSE(3, "Python error: Got non-integer CSLM ID, defaulted to 1 ('"
                       << contextFactor[i]->GetString(1).as_string()
                       << "' for word '"
                       << contextFactor[i]->GetString(0).as_string() << "')"
@@ -272,9 +271,10 @@ namespace Moses {
     if (message != 1) {
       VERBOSE(1, "Received wrong message from PyMoses while waiting for eval"
                  << endl);
+      StopThread();
       exit(1);
     } else {
-      VERBOSE(1, "Python scoring completed" << endl);
+      VERBOSE(3, "Python scoring completed" << endl);
     }
   }
 
