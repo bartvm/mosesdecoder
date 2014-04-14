@@ -123,7 +123,7 @@ project : default-build
   <warnings>on
   <debug-symbols>on
   <variant>release
-  <link>static
+  <link>shared
   ;
 
 #Apparently OS X likes to link against iconv for fgetsUTF8.
@@ -131,7 +131,6 @@ lib iconv ;
 requirements += <os>MACOSX:<library>iconv ;
 
 # Python
-import python ;
 using python : 2.7 : /home/apps/Logiciels/Python/python-2.7.2/bin/python ;
 external-lib boost_python ;
 
@@ -140,6 +139,7 @@ project : requirements
   <threading>multi:<library>boost_thread
   <library>boost_system
   <library>boost_python
+  <library>/python
   <define>_FILE_OFFSET_BITS=64 <define>_LARGE_FILES
   $(requirements)
   <include>.

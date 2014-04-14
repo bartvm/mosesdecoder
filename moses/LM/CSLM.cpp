@@ -49,7 +49,7 @@ void CSLM::ClearBuffer()
 
 }
 
-void CSLM::ClearBuffer()
+void CSLM::SyncBuffer()
 {
 
 }

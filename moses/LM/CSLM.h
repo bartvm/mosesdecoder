@@ -8,6 +8,7 @@
 #include <boost/python.hpp>
 #include "util/exception.hh"
 #include "moses/Util.h"
+#include "moses/StaticData.h"
 
 namespace Moses
 {
