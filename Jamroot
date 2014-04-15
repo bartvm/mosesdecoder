@@ -139,8 +139,6 @@ project : requirements
   <threading>multi:<define>WITH_THREADS
   <threading>multi:<library>boost_thread
   <library>boost_system
-  <library>boost_python
-  <library>boost_numpy
   <include>/RQusagers/vanmerb/.local/lib/python2.7/site-packages/numpy/core/include
   <library>/python
   <define>_FILE_OFFSET_BITS=64 <define>_LARGE_FILES
