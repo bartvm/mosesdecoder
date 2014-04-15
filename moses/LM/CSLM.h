@@ -4,14 +4,13 @@
 #include <vector>
 #include "SingleFactor.h"
 
-// #include <boost/numpy.hpp>
 #include <boost/thread.hpp>
 #include "Python.h"
-// #include <boost/python.hpp>
 #include <numpy/ndarrayobject.h>
 #include "util/exception.hh"
 #include "moses/Util.h"
 #include "moses/StaticData.h"
+
 
 namespace Moses
 {
@@ -26,15 +25,16 @@ protected:
 
   // Thread local storage of batches and results
   boost::thread_specific_ptr<bool> loaded;
-  boost::thread_specific_ptr<PyObject> batch;
-  boost::thread_specific_ptr<PyObject> scores;
-  boost::thread_specific_ptr<PyObject> async_result;
+  boost::thread_specific_ptr<PyObject> batch(&Py_XDECREF);
+  boost::thread_specific_ptr<PyObject> scores(&Py_XDECREF);
+  boost::thread_specific_ptr<PyObject> async_result(&Py_XDECREF);
 
   // Add factor IDs for EOS and BOS markers
   const Factor *m_sentenceStart_CSLM, *m_sentenceEnd_CSLM;
 
   void IssueRequestsFor(Hypothesis& hypo, const FFState* input_state);
   void IssueRequestFor(std::vector<const Word*>);
+
 
 public:
   CSLM(const std::string &line);

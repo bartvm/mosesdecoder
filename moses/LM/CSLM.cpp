@@ -29,10 +29,6 @@ CSLM::CSLM(const std::string &line)
 CSLM::~CSLM()
 {
   // This should deallocate all memory
-  if (async_result.get()) {
-    PyObject *pPreviousAsyncResult = async_result.release();
-    Py_DECREF(pPreviousAsyncResult);
-  }
   Py_Finalize();
 }
 
@@ -183,10 +179,10 @@ void CSLM::SendBuffer()
   PyObject *pAsyncResult = PyObject_CallObject(pFunc, pArgs);
   Py_INCREF(pAsyncResult);
   mtx_.unlock();
-  if (async_result.get()) {
-    PyObject *pPreviousAsyncResult = async_result.release();
-    Py_DECREF(pPreviousAsyncResult);
-  }
+  // if (async_result.get()) {
+  //   PyObject *pPreviousAsyncResult = async_result.release();
+  //   Py_DECREF(pPreviousAsyncResult);
+  // }
   async_result.reset(pAsyncResult);
 }
 
