@@ -4,8 +4,11 @@
 #include <vector>
 #include "SingleFactor.h"
 
+// #include <boost/numpy.hpp>
 #include <boost/thread.hpp>
-#include <boost/python.hpp>
+#include "Python.h"
+// #include <boost/python.hpp>
+#include <numpy/ndarrayobject.h>
 #include "util/exception.hh"
 #include "moses/Util.h"
 #include "moses/StaticData.h"
@@ -16,8 +19,22 @@ namespace Moses
 class CSLM : public LanguageModelSingleFactor
 {
 protected:
-  boost::python::object py_run_cslm;
-  boost::mutex py_mtx;
+  // Import Python modules and methods
+  PyObject *pFunc, *pModule;
+  // This mutex prevents simultaneous calls to Python
+  boost::mutex mtx_;
+
+  // Thread local storage of batches and results
+  boost::thread_specific_ptr<bool> loaded;
+  boost::thread_specific_ptr<PyObject> batch;
+  boost::thread_specific_ptr<PyObject> scores;
+  boost::thread_specific_ptr<PyObject> async_result;
+
+  // Add factor IDs for EOS and BOS markers
+  const Factor *m_sentenceStart_CSLM, *m_sentenceEnd_CSLM;
+
+  void IssueRequestsFor(Hypothesis& hypo, const FFState* input_state);
+  void IssueRequestFor(std::vector<const Word*>);
 
 public:
   CSLM(const std::string &line);
