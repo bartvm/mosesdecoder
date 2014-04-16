@@ -17,6 +17,7 @@ sys.stderr = open('cslm_pool.log', 'w')
 num_processes = 1
 model_file = 'europarl_cslm_cpu.pkl'
 
+
 def init_cslm():
     global f
     from theano import function, tensor
@@ -33,22 +34,24 @@ def init_cslm():
         ), allow_input_downcast=True
     )
 
+
 def cslm(batch):
-    input = numpy.random.randint(0, 10000, (1000, 6))
-    target_samples = numpy.random.randint(0, 1000, 10000)
+    input = numpy.random.randint(0, 10000, (500, 6))
+    target_samples = numpy.random.randint(0, 500, 10000)
     target_words = numpy.random.randint(0, 10000, 10000)
     return f(input, target_samples, target_words)
 
-def apply_async(batch):
-    async_result = pool.apply_async(cslm, [batch])
+
+def apply_async(batch, i):
+    async_result = pool.apply_async(cslm, [batch[:i]])
     return async_result
 
+
 def get(async_result):
-    print "get"
     return async_result.get()
 
+
 def close():
-    print "close"
     pool.close()
 
 pool = Pool(processes=num_processes, initializer=init_cslm)

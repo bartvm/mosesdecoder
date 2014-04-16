@@ -7,7 +7,8 @@ using namespace std;
 namespace Moses
 {
 CSLM::CSLM(const std::string &line)
-  :LanguageModelSingleFactor(line)
+  :LanguageModelSingleFactor(line), batch(&PyCleanup), scores(&PyCleanup),
+  async_result(&PyCleanup)
 {
   ReadParameters();
 
@@ -24,31 +25,38 @@ CSLM::CSLM(const std::string &line)
   m_sentenceEnd_CSLM = factorCollection.AddFactor(Output, 1, "0");
   m_sentenceEndWord[m_factorType] = m_sentenceEnd;
   m_sentenceEndWord[1] = m_sentenceEnd_CSLM;
+
 }
 
 CSLM::~CSLM()
 {
   // This should deallocate all memory
-  Py_Finalize();
+  // Py_XDECREF(pGet);
+  // Py_XDECREF(pApplyAsync);
+  // Py_XDECREF(pModule);
+  // Py_Finalize();
 }
 
 void CSLM::Load()
 {
   // Threads have not been loaded yet
   loaded.reset(new bool(false));
+  // Load Python
   VERBOSE(1, "Starting Python" << std::endl);
   Py_Initialize();
   import_array();
+  // Load the module and functions
   PyObject* pName = PyString_FromString("cslm_pool");
   pModule = PyImport_Import(pName);
   Py_DECREF(pName);
   if (pModule != NULL) {
-    pFunc = PyObject_GetAttrString(pModule, "apply_async");
-    if (!pFunc || !PyCallable_Check(pFunc)) {
+    pGet = PyObject_GetAttrString(pModule, "get");
+    pApplyAsync = PyObject_GetAttrString(pModule, "apply_async");
+    if (!pGet || !PyCallable_Check(pGet) || !pApplyAsync || !PyCallable_Check(pApplyAsync)) {
       if (PyErr_Occurred()) {
         PyErr_Print();
       }
-      UTIL_THROW2("Unable to load Python method apply_async");
+      UTIL_THROW2("Unable to load Python methods apply_async and/or get");
     } else {
       VERBOSE(1, "Successfully imported" << std::endl);
     }
@@ -132,17 +140,22 @@ void CSLM::IssueRequestFor(std::vector<const Word*> contextFactor)
   if (!loaded.get()) {
     loaded.reset(new bool(true));
     // Construct the NumPy array in which to store ngrams
+    mtx_.lock();
     npy_intp batch_dims[2] = {1000, 7};
     npy_intp scores_dims[1] = {1000};
     PyObject *pBatch = PyArray_ZEROS(2, batch_dims, NPY_INT, 0);
     PyObject *pScores = PyArray_ZEROS(1, scores_dims, NPY_FLOAT, 0);
     batch.reset(pBatch);
     scores.reset(pScores);
+    batch_count.reset(new int(0));
     // INCREF to prevent cleanup by Python GC?
-    Py_INCREF(pBatch);
-    Py_INCREF(pScores);
+    // Py_INCREF(pBatch);
+    // Py_INCREF(pScores);
+    mtx_.unlock();
     VERBOSE(3, "Buffer set" << std::endl);
   }
+  int* n = batch_count.get();
+  ++*n;
   // Create the n-gram from factor IDs
   // for (unsigned int i = 0; i < contextFactor.size(); i++) {
   //   if(contextFactor[i]->GetFactor(1)) {
@@ -174,26 +187,32 @@ void CSLM::SendBuffer()
 {
   VERBOSE(1, "Calling function" << std::endl);
   mtx_.lock();
-  PyObject *pArgs = PyTuple_New(1);
+  PyObject *pArgs = PyTuple_New(2);
   PyTuple_SetItem(pArgs, 0, batch.get());
-  PyObject *pAsyncResult = PyObject_CallObject(pFunc, pArgs);
-  Py_INCREF(pAsyncResult);
+  PyTuple_SetItem(pArgs, 1, PyInt_FromSize_t(*batch_count));
+  PyObject *pAsyncResult = PyObject_CallObject(pApplyAsync, pArgs);
+  // Py_INCREF(pAsyncResult);
   mtx_.unlock();
-  // if (async_result.get()) {
-  //   PyObject *pPreviousAsyncResult = async_result.release();
-  //   Py_DECREF(pPreviousAsyncResult);
-  // }
   async_result.reset(pAsyncResult);
 }
 
 void CSLM::ClearBuffer()
 {
-
+  batch_count.reset(new int(0));
 }
 
 void CSLM::SyncBuffer()
 {
   VERBOSE(1, "Waiting for results" << std::endl);
+  mtx_.lock();
+  PyObject *pArgs = PyTuple_New(1);
+  PyTuple_SetItem(pArgs, 0, async_result.get());
+  PyObject *pScore = PyObject_CallObject(pGet, pArgs);
+  // Don't INCREF pScore! Causes segfault
+  scores.reset(pScore);
+  mtx_.unlock();
+  // PyObject *pString = PyObject_Str(pScore);
+  // std::cout << PyString_AsString(pString) << std::endl;
 }
 
 LMResult CSLM::GetValue(const vector<const Word*> &contextFactor, State* finalState) const
