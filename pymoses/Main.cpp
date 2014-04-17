@@ -1,8 +1,12 @@
 #include <iostream>
-#include "pymoses.h"
-#include <boost/python.hpp>
-#include <boost/python/suite/indexing/map_indexing_suite.hpp>
-#include <boost/python/suite/indexing/vector_indexing_suite.hpp>
+#include <boost/interprocess/shared_memory_object.hpp>
+#include <boost/interprocess/mapped_region.hpp>
+#include <boost/interprocess/ipc/message_queue.hpp>
+// #include "Python.h"
+//#include <numpy/ndarrayobject.h>
+
+using namespace boost::interprocess;
+using namespace std;
 
 /**
  * This was copied from moses/Util.h
@@ -17,7 +21,7 @@
  * output on command line
  * */
 #ifdef TRACE_ENABLE
-#define TRACE_ERR(str) do { std::cerr << str; } while (false)
+#define TRACE_ERR(str) do { cerr << str; } while (false)
 #else
 #define TRACE_ERR(str) do {} while (false)
 #endif
@@ -27,92 +31,140 @@
 #define VERBOSE(level,str) { TRACE_ERR(str); }
 #define IFVERBOSE(level)
 
-boost::python::object py_run_cslm;
-boost::python::object py_cslm; 
+void OpenSharedMemory(string name, mapped_region* region) {
+  shared_memory_object shm_obj(
+    open_only, name.c_str(),
+    read_write
+  );
+  region = new mapped_region(
+    shm_obj, read_write
+  );
+}
+
+void OpenMessageQueue(string name, message_queue* mq) {
+  mq = new message_queue(open_only, name.c_str());
+}
+
+// void init_numpy() {
+//   import_array();
+// }
+// 
+// PyObject* LoadPython() {
+//   // Load Python
+//   Py_Initialize();
+//   init_numpy();
+//   PyObject* pGet;
+//   // Load the module and functions
+//   PyObject* pName = PyString_FromString("cslm");
+//   PyObject* pModule = PyImport_Import(pName);
+//   Py_DECREF(pName);
+//   if (pModule != NULL) {
+//     VERBOSE(1, "AAAH");
+//     pGet = PyObject_GetAttrString(pModule, "get");
+//     if (!pGet || !PyCallable_Check(pGet)) {
+//       if (PyErr_Occurred()) {
+//         PyErr_Print();
+//       }
+//       // UTIL_THROW2("Unable to load Python methods apply_async and/or get");
+//       VERBOSE(1, "AAAH");
+//     } else {
+//       VERBOSE(1, "Successfully imported" << endl);
+//     }
+//   } else {
+//     VERBOSE(1, "MUUUH");
+//     if (PyErr_Occurred()) {
+//       PyErr_Print();
+//     }
+//     // UTIL_THROW2("Unable to load Python module cslm_pool");
+//   }
+//
+//   return pGet;
+// }
 
 int main(int argc, char* argv[]) {
   // These are the names to access the message queues and shared memory
-  std::string thread_id = argv[1];
-  std::string memory_id = "memory" + thread_id;
-  std::string mq_to_id = "to" + thread_id;
-  std::string mq_from_id = "from" + thread_id;
-
-  // Access the message queues
-  boost::interprocess::message_queue py_to_moses(boost::interprocess::open_only,
-                                                 mq_to_id.c_str());
-  boost::interprocess::message_queue moses_to_py(boost::interprocess::open_only,
-                                                 mq_from_id.c_str());
-
-  // Access the shared memory segment
-  boost::interprocess::managed_shared_memory segment(boost::interprocess::open_only, memory_id.c_str());
-  stldb::scoped_allocation<segment_manager_t> scope(segment.get_segment_manager());
-  MapType *requests = segment.find<MapType>("MyMap").first;
+  string thread_id  = argv[1];
+  string ngrams_id  = thread_id + "ngrams";
+  string scores_id  = thread_id + "scores";
+  string m2py_id = thread_id + "m2py";
+  string py2m_id = thread_id + "py2m";
 
   // Start Python
-  int message;
-  VERBOSE(1, "Starting Python for thread " << thread_id << std::endl);
-  Py_Initialize();
-  try {
-    py_cslm = boost::python::import("cslm");
-    py_run_cslm = py_cslm.attr("run_cslm");
-  } catch(boost::python::error_already_set const &) {
-    // Print the error and signal Moses that something is wrong!
-    PyErr_Print();
-    message = 1;
-    py_to_moses.send(&message, sizeof(int), 1);
-    boost::interprocess::message_queue::remove(mq_from_id.c_str());
-    exit(1);
+  // int message;
+  VERBOSE(1, "Starting Python for thread " << thread_id << endl);
+  // PyObject* pGet = LoadPython();
+
+  // Access the message queues
+  message_queue m2py(open_only, m2py_id.c_str());
+  message_queue py2m(open_only, py2m_id.c_str());
+
+  // // Access the shared memory segment
+  shared_memory_object ngrams_shm_obj(open_only, ngrams_id.c_str(), read_write);
+  shared_memory_object scores_shm_obj(open_only, scores_id.c_str(), read_write);
+  mapped_region ngrams_region(ngrams_shm_obj, read_write);
+  mapped_region scores_region(scores_shm_obj, read_write);
+
+  char *mem = static_cast<char*>(ngrams_region.get_address());
+  bool success(true);
+  for(size_t i = 0; i < ngrams_region.get_size(); ++i) {
+    if(*mem++ != 1) {
+      VERBOSE(1, "Error! Shared memory segment data seems corrupted" << endl);
+      success = false;
+    }
+  }
+  if (success) {
+    VERBOSE(1, "Shared memory check completed" << endl);
   }
 
-  // Expose our data
-  boost::python::class_<IntVector>("IntVector")
-  .def(boost::python::vector_indexing_suite<IntVector>());
-  boost::python::class_<MapType>("MapType")
-  .def(boost::python::map_indexing_suite<MapType>());
+  // // Create the Python NumPy wrappers and store iterators over them
+  // // int ngrams_nd = 2;
+  // // npy_intp ngrams_dims[2] = {10000, 7};
+  // // VERBOSE(1, "Starting...");
+  // // PyObject* ngrams_array = PyArray_SimpleNewFromData(ngrams_nd, ngrams_dims,
+  // //                                                    NPY_INT,
+  // //                                                    ngrams_address);
+  // // VERBOSE(1, "Starting...");
+  // // int scores_nd = 1;
+  // // npy_intp scores_dims[1] = {10000};
+  // // VERBOSE(1, "Starting...");
+  // // PyObject* scores_array = PyArray_SimpleNewFromData(scores_nd, scores_dims,
+  // //                                                    NPY_FLOAT,
+  // //                                                    scores_address);
+  // // VERBOSE(1, "Starting...");
+  // // PyObject *pArgs = PyTuple_New(2);
+  // // PyTuple_SetItem(pArgs, 0, ngrams_array);
+  // // PyTuple_SetItem(pArgs, 1, scores_array);
 
-  // Signal that everything is good to go!
-  message = 0;
-  py_to_moses.send(&message, sizeof(int), 0);
+  // // VERBOSE(1, "Starting...");
 
-  // Listen for messages
-  boost::interprocess::message_queue::size_type recvd_size;
+  // // Signal that everything is good to go!
+  int message = 0;
+  VERBOSE(1, "Sending OK message..." << endl);
+  py2m.send(&message, sizeof(int), 0);
+  VERBOSE(1, "Sent OK message" << endl);
+
+  // // Listen for messages
+  message_queue::size_type recvd_size;
   unsigned int priority;
   while (true) {
     message = 0;
-    moses_to_py.receive(&message, sizeof(message), recvd_size, priority);
+    m2py.receive(&message, sizeof(message), recvd_size, priority);
     if (message == 1) {
-      // VERBOSE(3, "Python started scoring..." << std::endl);
-      // Message 1 means that a batch is ready to be scored
-      try {
-        // Run the Python method, read out the scores and save them in shared memory
-        // Ideally we would want Python to write to shared memory directly, but
-        // I don't know how to do that; using shared pointers just gives trouble
-        MapType scores = boost::python::extract<MapType>(py_run_cslm(requests));
-        for (MapType::iterator it = requests->begin(); it != requests->end(); ++it) {
-          it->second = scores.at(it->first);
-        }
-      } catch(boost::python::error_already_set const &) {
-        PyErr_Print();
-      }
-      // We signal to Moses that the scoring has been done
+      // PyObject_CallObject(pGet, pArgs);
+      // VERBOSE(1, "Running Python" << endl);
       message = 1;
-      py_to_moses.send(&message, sizeof(int), 0);
+      py2m.send(&message, sizeof(int), 0);
     } else if (message == 2) {
       // Message 2 means that Moses is quitting (CSLM object destructor)
-      try {
-        boost::python::object py_profile = py_cslm.attr("profile");
-        py_profile();
-      } catch(boost::python::error_already_set const &) {
-        PyErr_Print();
-      }
-      VERBOSE(1, "Stopping Python, destroying message queue" << std::endl);
-      boost::interprocess::message_queue::remove(mq_from_id.c_str());
-      exit(0);
+      VERBOSE(1, "Stopping Python, destroying message queue" << endl);
+      message_queue::remove(py2m_id.c_str());
+      break;
     } else {
       // Something went wrong
-      VERBOSE(1, "Python received error message, destroying message queue" << std::endl);
-      boost::interprocess::message_queue::remove(mq_from_id.c_str());
-      exit(1);
+      VERBOSE(1, "Python received error message, destroying message queue"
+                 << endl);
+      message_queue::remove(py2m_id.c_str());
+      break;
     }
   }
 }

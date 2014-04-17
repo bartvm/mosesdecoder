@@ -1,12 +1,13 @@
 # Based of Boost.Python examples' quickstart
-import python ;
-using python : 2.7 : /home/apps/Logiciels/Python/python-2.7.2/bin/python ;
-external-lib boost_python ;
+using python : 2.7 : /usr/local/bin/python ;
 
-project pymoses
-  : requirements <library>boost_python
+project pymoses : requirements
+  <library>/python
+  <linkflags>"-L/usr/local/Cellar/python/2.7.6/Frameworks/Python.framework/Versions/2.7/lib/python2.7 -lpython2.7"
+  <include>/usr/local/Cellar/python/2.7.6/Frameworks/Python.framework/Versions/2.7/include/python2.7
+  <include>/usr/local/Cellar/python/2.7.6/Frameworks/Python.framework/Versions/2.7/lib/python2.7/site-packages/numpy/core/include
   ;
 
 # Adding the <link>shared is VERY important
-exe pymoses : Main.cpp /python//python/<link>shared ;
+exe pymoses : Main.cpp ;
 

@@ -53,7 +53,7 @@ lib util ;
 # Python uses pthread symbols.
 lib pthread ;
 # Extra library needed by phtread on some platforms.
-lib rt ;
+# lib rt ;
 
 # The pythonpath feature specifies additional elements for the PYTHONPATH
 # environment variable, set by run-pyd. For example, pythonpath can be used to

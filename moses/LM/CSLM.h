@@ -5,8 +5,18 @@
 #include "SingleFactor.h"
 #include <boost/lexical_cast.hpp>
 #include <boost/filesystem.hpp>
-#include <boost/unordered_map.hpp>
-#include "pymoses/pymoses.h"
+#include <boost/interprocess/shared_memory_object.hpp>
+#include <boost/interprocess/mapped_region.hpp>
+#include <boost/interprocess/ipc/message_queue.hpp>
+#include "Python.h"
+#include <numpy/ndarrayobject.h>
+#include "moses/FactorCollection.h"
+#include "moses/StaticData.h"
+#include "moses/Util.h"
+#include "util/exception.hh"
+
+using namespace std;
+using namespace boost::interprocess;
 
 namespace Moses
 {
@@ -14,28 +24,42 @@ namespace Moses
 class CSLM : public LanguageModelSingleFactor
 {
 protected:
-  boost::thread_specific_ptr<boost::interprocess::managed_shared_memory> segment;
-  boost::thread_specific_ptr<boost::interprocess::message_queue> py_to_moses;
-  boost::thread_specific_ptr<boost::interprocess::message_queue> moses_to_py;
-  boost::thread_specific_ptr<boost::unordered_map<std::vector<const Word*>, IntVector> > score_map;
-  std::string ThisThreadId(std::string prefix) const;
+  // The message queues to communicate with the Python subprocesses
+  boost::thread_specific_ptr<message_queue> py2m_tsp;
+  boost::thread_specific_ptr<message_queue> m2py_tsp;
+
+  // The NumPy objects that wrap the data
+  boost::thread_specific_ptr<mapped_region> ngrams_region_tsp;
+  boost::thread_specific_ptr<mapped_region> scores_region_tsp;
+  // static void NpyIterCleanup(NpyIter *ptr) {
+  //   // Not sure if we should DECREF
+  //   // or just let it be
+  // }
+  boost::thread_specific_ptr<NpyIter> ngrams;
+  boost::thread_specific_ptr<NpyIter> scores;
+  boost::thread_specific_ptr<int> batch_count;
+
+  // A function to retrieve the thread ID
+  string ThisThreadId(string suffix) const;
 
   const Factor *m_sentenceStart_CSLM, *m_sentenceEnd_CSLM;
 
 public:
-  CSLM(const std::string &line);
+  CSLM(const string &line);
   ~CSLM();
   void LoadThread();
   void StopThread();
 
-  void IssuePythonRequest(std::vector<const Word*>);
+  void IssuePythonRequest(vector<const Word*>);
   void IssueRequestsFor(Hypothesis& hypo, const FFState* input_state);
+
+  void Load();
 
   void SendBuffer();
   void SyncBuffer();
   void ClearBuffer();
 
-  virtual LMResult GetValue(const std::vector<const Word*> &contextFactor, State* finalState = 0) const;
+  virtual LMResult GetValue(const vector<const Word*> &contextFactor, State* finalState = 0) const;
 };
 
 
