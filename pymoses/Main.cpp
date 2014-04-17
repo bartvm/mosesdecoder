@@ -2,8 +2,8 @@
 #include <boost/interprocess/shared_memory_object.hpp>
 #include <boost/interprocess/mapped_region.hpp>
 #include <boost/interprocess/ipc/message_queue.hpp>
-// #include "Python.h"
-//#include <numpy/ndarrayobject.h>
+#include "Python.h"
+#include <numpy/ndarrayobject.h>
 
 using namespace boost::interprocess;
 using namespace std;
@@ -45,41 +45,39 @@ void OpenMessageQueue(string name, message_queue* mq) {
   mq = new message_queue(open_only, name.c_str());
 }
 
-// void init_numpy() {
-//   import_array();
-// }
-// 
-// PyObject* LoadPython() {
-//   // Load Python
-//   Py_Initialize();
-//   init_numpy();
-//   PyObject* pGet;
-//   // Load the module and functions
-//   PyObject* pName = PyString_FromString("cslm");
-//   PyObject* pModule = PyImport_Import(pName);
-//   Py_DECREF(pName);
-//   if (pModule != NULL) {
-//     VERBOSE(1, "AAAH");
-//     pGet = PyObject_GetAttrString(pModule, "get");
-//     if (!pGet || !PyCallable_Check(pGet)) {
-//       if (PyErr_Occurred()) {
-//         PyErr_Print();
-//       }
-//       // UTIL_THROW2("Unable to load Python methods apply_async and/or get");
-//       VERBOSE(1, "AAAH");
-//     } else {
-//       VERBOSE(1, "Successfully imported" << endl);
-//     }
-//   } else {
-//     VERBOSE(1, "MUUUH");
-//     if (PyErr_Occurred()) {
-//       PyErr_Print();
-//     }
-//     // UTIL_THROW2("Unable to load Python module cslm_pool");
-//   }
+void init_numpy() {
+  import_array();
+}
 //
-//   return pGet;
-// }
+PyObject* LoadPython() {
+// void LoadPython() {
+  // Load Python
+  Py_Initialize();
+  init_numpy();
+  PyObject* pGet;
+  // Load the module and functions
+  PyObject* pName = PyString_FromString("cslm");
+  PyObject* pModule = PyImport_Import(pName);
+  Py_DECREF(pName);
+  Py_INCREF(pModule);
+  if (pModule != NULL) {
+    pGet = PyObject_GetAttrString(pModule, "get");
+    if (!pGet || !PyCallable_Check(pGet)) {
+      VERBOSE(1, "Unable to load CSLM Python method" << endl);
+      if (PyErr_Occurred()) {
+        PyErr_Print();
+      }
+    } else {
+      VERBOSE(1, "Successfully imported Python module" << endl);
+    }
+  } else {
+    VERBOSE(1, "Unable to load CSLM Python module");
+    if (PyErr_Occurred()) {
+      PyErr_Print();
+    }
+  }
+  return pGet;
+}
 
 int main(int argc, char* argv[]) {
   // These are the names to access the message queues and shared memory
@@ -92,7 +90,8 @@ int main(int argc, char* argv[]) {
   // Start Python
   // int message;
   VERBOSE(1, "Starting Python for thread " << thread_id << endl);
-  // PyObject* pGet = LoadPython();
+  PyObject* pGet = LoadPython();
+  // LoadPython();
 
   // Access the message queues
   message_queue m2py(open_only, m2py_id.c_str());
@@ -116,56 +115,55 @@ int main(int argc, char* argv[]) {
     VERBOSE(1, "Shared memory check completed" << endl);
   }
 
-  // // Create the Python NumPy wrappers and store iterators over them
-  // // int ngrams_nd = 2;
-  // // npy_intp ngrams_dims[2] = {10000, 7};
-  // // VERBOSE(1, "Starting...");
-  // // PyObject* ngrams_array = PyArray_SimpleNewFromData(ngrams_nd, ngrams_dims,
-  // //                                                    NPY_INT,
-  // //                                                    ngrams_address);
-  // // VERBOSE(1, "Starting...");
-  // // int scores_nd = 1;
-  // // npy_intp scores_dims[1] = {10000};
-  // // VERBOSE(1, "Starting...");
-  // // PyObject* scores_array = PyArray_SimpleNewFromData(scores_nd, scores_dims,
-  // //                                                    NPY_FLOAT,
-  // //                                                    scores_address);
-  // // VERBOSE(1, "Starting...");
-  // // PyObject *pArgs = PyTuple_New(2);
-  // // PyTuple_SetItem(pArgs, 0, ngrams_array);
-  // // PyTuple_SetItem(pArgs, 1, scores_array);
+  int ngrams_nd = 2;
+  npy_intp ngrams_dims[2] = {10000, 7};
+  PyObject* ngrams_array = PyArray_SimpleNewFromData(ngrams_nd, ngrams_dims,
+                                                     NPY_INT,
+                                                     ngrams_region.get_address());
+  int scores_nd = 1;
+  npy_intp scores_dims[1] = {10000};
+  PyObject* scores_array = PyArray_SimpleNewFromData(scores_nd, scores_dims,
+                                                     NPY_FLOAT,
+                                                     scores_region.get_address());
 
-  // // VERBOSE(1, "Starting...");
+  VERBOSE(1, "Testing Python function" << endl);
+  PyObject *pArgs = PyTuple_New(3);
+  PyTuple_SetItem(pArgs, 0, ngrams_array);
+  PyTuple_SetItem(pArgs, 1, scores_array);
+  PyTuple_SetItem(pArgs, 2, PyInt_FromLong(10));
+  PyObject_CallObject(pGet, pArgs);
 
-  // // Signal that everything is good to go!
+  // Signal that everything is good to go!
   int message = 0;
-  VERBOSE(1, "Sending OK message..." << endl);
   py2m.send(&message, sizeof(int), 0);
-  VERBOSE(1, "Sent OK message" << endl);
 
-  // // Listen for messages
+  // Listen for messages
   message_queue::size_type recvd_size;
   unsigned int priority;
   while (true) {
     message = 0;
     m2py.receive(&message, sizeof(message), recvd_size, priority);
-    if (message == 1) {
-      // PyObject_CallObject(pGet, pArgs);
-      // VERBOSE(1, "Running Python" << endl);
-      message = 1;
+    if (message > 0) {
+      PyTuple_SetItem(pArgs, 2, PyInt_FromLong(message));
+      PyObject* result = PyObject_CallObject(pGet, pArgs);
+      if (result == Py_True) {
+        message = 1;
+      } else {
+        message = 2;
+      }
       py2m.send(&message, sizeof(int), 0);
-    } else if (message == 2) {
-      // Message 2 means that Moses is quitting (CSLM object destructor)
-      VERBOSE(1, "Stopping Python, destroying message queue" << endl);
+    } else if (message == -1) {
+      // Message -1 means that Moses is quitting (CSLM object destructor)
       message_queue::remove(py2m_id.c_str());
       break;
     } else {
       // Something went wrong
-      VERBOSE(1, "Python received error message, destroying message queue"
+      VERBOSE(1, "PyMoss received strange message, destroying message queue"
                  << endl);
       message_queue::remove(py2m_id.c_str());
       break;
     }
   }
+  Py_Finalize();
+  VERBOSE(1, "PyMoses terminated" << endl);
 }
-

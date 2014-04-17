@@ -24,11 +24,16 @@ namespace Moses {
     m_sentenceEndWord[1] = m_sentenceEnd_CSLM;
   }
 
-  CSLM::~CSLM() {}
+  CSLM::~CSLM() {
+    PyEval_RestoreThread(state);
+    Py_Finalize();
+  }
 
   void CSLM::Load() {
-    // Py_Initialize();
-    // import_array();
+    Py_Initialize();
+    import_array();
+    // Save the current thread state, release implicit GIL
+    state = PyEval_SaveThread();
   }
 
   string CSLM::ThisThreadId(string suffix) const {
@@ -39,19 +44,18 @@ namespace Moses {
     // thread_shared_ptr isn't any better and results in double free,
     // corruption, wrong pointers, and more!)
     std::stringstream ss;
-    ss << pthread_self() << suffix;
+    ss << boost::this_thread::get_id() << suffix;
     return ss.str();
   }
 
   void CSLM::StopThread() {
     // Clean up message queues
-    VERBOSE(1, "Stopping translation thread" << endl);
-    //int message = 2;
-    //moses_to_py->send(&message, sizeof(int), 0);
-    //message_queue::remove(ThisThreadId("to").c_str());
+    int message = -1;
+    m2py_tsp->send(&message, sizeof(int), 0);
+    message_queue::remove(ThisThreadId("to").c_str());
 
-    //// Clean up shared memory
-    //VERBOSE(1, "Removing shared memory" << endl);
+    // Clean up shared memory
+    // TODO: This seems to crash things, find out why?
     //shared_memory_object::remove(
     //  ThisThreadId("ngrams").c_str()
     //);
@@ -73,10 +77,13 @@ namespace Moses {
     py2m_tsp.reset(new message_queue(open_or_create,
                                      ThisThreadId("py2m").c_str(), 1, sizeof(int)));
 
-    // // Setting up the shared memory segment
+    // Setting up the shared memory segment
+    // Easier doing it this way than in a separate function
+    // because some things seem to disappear in the stack
     VERBOSE(1, "Setting up shared memory" << endl);
     shared_memory_object ngrams_shm_obj(open_or_create, ThisThreadId("ngrams").c_str(), read_write);
     shared_memory_object scores_shm_obj(open_or_create, ThisThreadId("scores").c_str(), read_write);
+    // TODO: These numbers should be calculated more precisely (now 1MB for each)
     ngrams_shm_obj.truncate(1048576);
     scores_shm_obj.truncate(1048576);
     ngrams_region_tsp.reset(new mapped_region(ngrams_shm_obj, read_write));
@@ -84,35 +91,31 @@ namespace Moses {
     memset(ngrams_region_tsp->get_address(), 1, ngrams_region_tsp->get_size());
     memset(scores_region_tsp->get_address(), 1, scores_region_tsp->get_size());
 
-    // // Create the Python NumPy wrappers and store iterators over them
-    // int ngrams_nd = 2;
-    // npy_intp ngrams_dims[2] = {10000, 7};
-    // PyObject* ngrams_array = PyArray_SimpleNewFromData(ngrams_nd, ngrams_dims,
-    //                                                    NPY_INT,
-    //                                                    ngrams_region->get_address());
-    // Py_INCREF(ngrams_array);
-    // NpyIter *ngrams_iter = NpyIter_New((PyArrayObject*)ngrams_array,
-    //                                    NPY_ITER_READWRITE, NPY_KEEPORDER,
-    //                                    NPY_NO_CASTING, NULL);
-    // ngrams.reset(ngrams_iter);
+    // Create the Python NumPy wrappers and store iterators over them
+    // We need the GIL for this!
+    PyGILState_STATE gstate;
+    gstate = PyGILState_Ensure();
+    int ngrams_nd = 2;
+    npy_intp ngrams_dims[2] = {10000, 7};
+    PyObject* ngrams_array = PyArray_SimpleNewFromData(ngrams_nd, ngrams_dims,
+                                                       NPY_INT,
+                                                       ngrams_region_tsp->get_address());
+    NpyIter *ngrams_iter = NpyIter_New((PyArrayObject*)ngrams_array,
+                                       NPY_ITER_READWRITE, NPY_KEEPORDER,
+                                       NPY_NO_CASTING, NULL);
+    ngrams.reset(ngrams_iter);
 
-    // int scores_nd = 1;
-    // npy_intp scores_dims[1] = {10000};
-    // PyObject* scores_array = PyArray_SimpleNewFromData(scores_nd, scores_dims,
-    //                                                    NPY_FLOAT,
-    //                                                    scores_region->get_address());
-    // Py_INCREF(scores_array);
-    // NpyIter *scores_iter = NpyIter_New((PyArrayObject*)scores_array,
-    //                                    NPY_ITER_READWRITE, NPY_KEEPORDER,
-    //                                    NPY_NO_CASTING, NULL);
-    // int **dataptr = (int**) NpyIter_GetDataPtrArray(ngrams_iter);
-    // VERBOSE(1, "Current value: " << **dataptr << endl);
-    // **dataptr = 10;
-    // VERBOSE(1, "New value: " << **dataptr << endl);
-    // PyObject* str = PyObject_Str(ngrams_array);
-    // char* cstr = PyString_AsString(str);
-    // VERBOSE(1, "Array: " << cstr << endl);
-    // scores.reset(scores_iter);
+    int scores_nd = 1;
+    npy_intp scores_dims[1] = {10000};
+    PyObject* scores_array = PyArray_SimpleNewFromData(scores_nd, scores_dims,
+                                                       NPY_FLOAT,
+                                                       scores_region_tsp->get_address());
+    NpyIter *scores_iter = NpyIter_New((PyArrayObject*)scores_array,
+                                       NPY_ITER_READWRITE, NPY_KEEPORDER,
+                                       NPY_NO_CASTING, NULL);
+    scores.reset(scores_iter);
+
+    PyGILState_Release(gstate);
 
     batch_count.reset(new int(0));
 
@@ -146,7 +149,7 @@ namespace Moses {
       // CHILD PROCESS; Start pymoses and pipe the results back
       if (!(fpipe = (FILE*)popen(command.c_str(), "r"))) {
         VERBOSE(1, "Problems with pipe" << endl);
-        StopThread();
+        // TODO: Clean exit
       }
       while (fgets( line, sizeof line, fpipe)) {
         printf("%s", line);
@@ -154,56 +157,48 @@ namespace Moses {
       pclose(fpipe);
     } else {
       VERBOSE(1, "Forking error" << endl);
-      StopThread();
+      // TODO: Clean exit
     }
   }
 
   void CSLM::IssuePythonRequest(std::vector<const Word*> contextFactor) {
-    // // Increase the batch size
+    // Increase the batch size
     int* n = batch_count.get();
     *n = *n + 1;
 
-    // // Create the n-gram from factor IDs
-    // NpyIter* iter = ngrams.get();
-    // NpyIter_IterNextFunc *iternext = NpyIter_GetIterNext(iter, NULL);
-    // if (iternext == NULL) {
-    //   NpyIter_Deallocate(iter);
-    //   VERBOSE(1, "Fail!" << endl);
-    // }
-    // VERBOSE(1, "Getting data pointers" << endl);
-    // int **dataptr = (int**) NpyIter_GetDataPtrArray(iter);
-    // for (unsigned int i = 0; i < contextFactor.size(); i++) {
-    //   if(contextFactor[i]->GetFactor(1)) {
-    //     try {
-    //       int cslm_id = boost::lexical_cast<int>(
-    //         contextFactor[i]->GetString(1).as_string()
-    //       );
-    //       **dataptr = cslm_id;
-    //     } catch (const boost::bad_lexical_cast& e) {
-    //       **dataptr = 1;
-    //       VERBOSE(3, "Python error: Got non-integer CSLM ID, defaulted to 1 ('"
-    //                   << contextFactor[i]->GetString(1).as_string()
-    //                   << "' for word '"
-    //                   << contextFactor[i]->GetString(0).as_string() << "')"
-    //                   << endl);
-    //     }
-    //   } else {
-    //     **dataptr = 1;
-    //   }
-    //   iternext(iter);
-    // }
-    // int ngrams_nd = 2;
-    // npy_intp ngrams_dims[2] = {10000, 7};
-    // PyObject* ngrams_array = PyArray_SimpleNewFromData(ngrams_nd, ngrams_dims,
-    //                                                    NPY_INT,
-    //                                                    ngrams_region->get_address());
-    // PyObject* str = PyObject_Str(ngrams_array);
-    // char* cstr = PyString_AsString(str);
-    // VERBOSE(1, "Syncing: " << cstr << endl);
+    // Create the n-gram from factor IDs
+    // Note that these NumPy functions can be called without GIL
+    NpyIter* iter = ngrams.get();
+    NpyIter_IterNextFunc *iternext = NpyIter_GetIterNext(iter, NULL);
+    if (iternext == NULL) {
+      NpyIter_Deallocate(iter);
+      VERBOSE(1, "Unable to create Numpy iterator function" << endl);
+      // TODO: Clean exit
+    }
+    int **dataptr = (int**) NpyIter_GetDataPtrArray(iter);
+    for (unsigned int i = 0; i < contextFactor.size(); i++) {
+      if(contextFactor[i]->GetFactor(1)) {
+        try {
+          int cslm_id = boost::lexical_cast<int>(
+            contextFactor[i]->GetString(1).as_string()
+          );
+          **dataptr = cslm_id;
+        } catch (const boost::bad_lexical_cast& e) {
+          **dataptr = 1;
+          VERBOSE(3, "Python error: Got non-integer CSLM ID, defaulted to 1 ('"
+                      << contextFactor[i]->GetString(1).as_string()
+                      << "' for word '"
+                      << contextFactor[i]->GetString(0).as_string() << "')"
+                      << endl);
+        }
+      } else {
+        **dataptr = 1;
+      }
+      iternext(iter);
+    }
   }
 
   void CSLM::IssueRequestsFor(Hypothesis& hypo, const FFState* input_state) {
-    // VERBOSE(1, "Test");
     // This is called for each hypothesis; we construct all the possible
     // n-grams for this phrase and issue a scoring request to Python
     if(GetNGramOrder() <= 1) {
@@ -270,15 +265,18 @@ namespace Moses {
 
   LMResult CSLM::GetValue(const std::vector<const Word*> &contextFactor,
                           State* finalState) const {
+    // Get the iterator of the scores
+    NpyIter* iter = scores.get();
+    NpyIter_IterNextFunc *iternext = NpyIter_GetIterNext(iter, NULL);
+    int **dataptr = (int**) NpyIter_GetDataPtrArray(iter);
+
+    // Construct the score result
     LMResult ret;
-
-    // NpyIter* iter = scores.get();
-    // NpyIter_IterNextFunc *iternext = NpyIter_GetIterNext(iter, NULL);
-    // int **dataptr = (int**) NpyIter_GetDataPtrArray(iter);
-
-    // ret.score = **dataptr;
-    ret.score = 0.0;
+    ret.score = **dataptr;
     ret.unknown = false;
+
+    // Increment iterator for next score
+    iternext(iter);
 
     // Use last word as state info
     const Factor *factor;
@@ -288,10 +286,7 @@ namespace Moses {
     } else {
       factor = NULL;
     }
-
     (*finalState) = (State*) factor;
-
-    // iternext(iter);
 
     return ret;
   }
@@ -300,8 +295,7 @@ namespace Moses {
     // Here we message the child process that a complete batch has been stored
     // in the shared memory, and is ready to be scored
     if (*batch_count.get() > 0) {
-      VERBOSE(1, "Ping (" << *batch_count.get() << ")" << endl);
-      int message = 1;
+      int message = *batch_count.get();
       m2py_tsp->send(&message, sizeof(int), 0);
     }
   }
@@ -309,14 +303,6 @@ namespace Moses {
   void CSLM::SyncBuffer() {
     // Here we wait for the child process to finish scoring before we read out
     // the scores from shared memory
-    //
-    // int ngrams_nd = 2;
-    // npy_intp ngrams_dims[2] = {10000, 7};
-    // PyObject* ngrams_array = PyArray_SimpleNewFromData(ngrams_nd, ngrams_dims,
-    //                                                    NPY_INT,
-    //                                                    ngrams_region->get_address());
-    // PyObject* str = PyObject_Str(ngrams_array);
-    // char* cstr = PyString_AsString(str);
     if (*batch_count.get() > 0) {
       int message = 0;
       message_queue::size_type recvd_size;
@@ -325,9 +311,6 @@ namespace Moses {
       if (message != 1) {
         VERBOSE(1, "Received wrong message from PyMoses while waiting for eval"
                    << endl);
-        StopThread();
-      } else {
-        VERBOSE(1, "Pong!" << endl);
       }
     }
   }
@@ -335,8 +318,8 @@ namespace Moses {
   void CSLM::ClearBuffer() {
     // All the hypotheses in this batch have been scored, so delete them from
     // the shared memory
-    // NpyIter_Reset(ngrams.get(), NULL);
-    // NpyIter_Reset(scores.get(), NULL);
+    NpyIter_Reset(ngrams.get(), NULL);
+    NpyIter_Reset(scores.get(), NULL);
     int* n = batch_count.get();
     *n = 0;
   }

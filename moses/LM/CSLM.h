@@ -44,6 +44,8 @@ protected:
 
   const Factor *m_sentenceStart_CSLM, *m_sentenceEnd_CSLM;
 
+  PyThreadState* state;
+
 public:
   CSLM(const string &line);
   ~CSLM();
