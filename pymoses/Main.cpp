@@ -127,7 +127,6 @@ int main(int argc, char* argv[]) {
   unsigned int priority;
   PyObject* batch_size;
   PyObject* result;
-  VERBOSE(1, "Its : " << result->ob_refcnt << endl);
   while (true) {
     message = 0;
     m2py.receive(&message, sizeof(message), recvd_size, priority);
