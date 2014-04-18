@@ -38,23 +38,34 @@ logging.debug("Compiled Theano function")
 
 
 def filter(ngrams):
-    inputs, targets = ngrams[:, :-1], ngrams[:, -1]
-    inputs_row_view = numpy.ascontiguousarray(inputs).view(
-        numpy.dtype((numpy.void, inputs.dtype.itemsize * inputs.shape[1]))
-    ).flatten()
-    sorted_indices = numpy.argsort(inputs_row_view)
-    reverse_sorted_indices = numpy.argsort(sorted_indices)
-    _, unique_indices = numpy.unique(inputs_row_view[sorted_indices],
-                                     return_index=True)
-    final_inputs = inputs[sorted_indices][unique_indices]
-
-    repeats = numpy.roll(unique_indices, -1) - unique_indices
-    repeats[-1] += inputs.shape[0]
-
-    target_samples = numpy.repeat(numpy.arange(unique_indices.shape[0],
-                                               dtype='int32'), repeats)
-    target_words = targets[sorted_indices]
-    return final_inputs, target_samples, target_words, reverse_sorted_indices
+    try:
+        inputs, targets = numpy.ascontiguousarray(ngrams[:, :-1]), numpy.ascontiguousarray(ngrams[:, -1])
+        sorted_indices = numpy.lexsort(inputs.T[::-1])
+        reverse_sorted_indices = numpy.argsort(sorted_indices)
+        unique_indices = numpy.nonzero(numpy.concatenate((
+            [True], # Always take the first row
+            numpy.any(inputs[sorted_indices[1:]] != inputs[sorted_indices[:-1]],
+                      axis=1) # Only the unique ones
+        )))[0]
+        final_inputs = inputs[sorted_indices][unique_indices]
+    except:
+        logging.debug('A')
+        logging.debug(sys.exc_info())
+        logging.debug(locals())
+        return inputs, numpy.arange(len(targets), dtype='int32'), targets, numpy.arange(len(targets), dtype='int32')
+    try:
+        repeats = numpy.roll(unique_indices, -1) - unique_indices
+        repeats[-1] += inputs.shape[0]
+     
+        target_samples = numpy.repeat(numpy.arange(unique_indices.shape[0],
+                                                   dtype='int32'), repeats)
+        target_words = targets[sorted_indices]
+    	return final_inputs, target_samples, target_words, reverse_sorted_indices
+    except:
+        logging.debug('B')
+        logging.debug(sys.exc_info())
+        logging.debug(locals())
+        return inputs, numpy.arange(len(targets), dtype='int32'), targets, numpy.arange(len(targets), dtype='int32')
 
 
 def get(ngrams, scores, batch_size):
