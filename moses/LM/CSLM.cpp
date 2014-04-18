@@ -49,19 +49,24 @@ namespace Moses {
   }
 
   void CSLM::StopThread() {
-    // Clean up message queues
+    // Delete the message queues as soon as PyMoses responds
     int message = -1;
     m2py_tsp->send(&message, sizeof(int), 0);
-    message_queue::remove(ThisThreadId("to").c_str());
+    message_queue::size_type recvd_size;
+    unsigned int priority;
+    py2m_tsp->receive(&message, sizeof(message), recvd_size, priority);
+    message_queue::remove(ThisThreadId("m2py").c_str());
+    message_queue::remove(ThisThreadId("py2m").c_str());
+
+    waitpid(*child_pid.get(), NULL, 0);
 
     // Clean up shared memory
-    // TODO: This seems to crash things, find out why?
-    //shared_memory_object::remove(
-    //  ThisThreadId("ngrams").c_str()
-    //);
-    //shared_memory_object::remove(
-    //  ThisThreadId("scores").c_str()
-    //);
+    shared_memory_object::remove(
+      ThisThreadId("ngrams").c_str()
+    );
+    shared_memory_object::remove(
+      ThisThreadId("scores").c_str()
+    );
   }
 
   void CSLM::LoadThread() {
@@ -103,6 +108,7 @@ namespace Moses {
     NpyIter *ngrams_iter = NpyIter_New((PyArrayObject*)ngrams_array,
                                        NPY_ITER_READWRITE, NPY_KEEPORDER,
                                        NPY_NO_CASTING, NULL);
+    Py_DECREF(ngrams_array);
     ngrams.reset(ngrams_iter);
 
     int scores_nd = 1;
@@ -113,6 +119,7 @@ namespace Moses {
     NpyIter *scores_iter = NpyIter_New((PyArrayObject*)scores_array,
                                        NPY_ITER_READWRITE, NPY_KEEPORDER,
                                        NPY_NO_CASTING, NULL);
+    Py_DECREF(scores_array);
     scores.reset(scores_iter);
 
     PyGILState_Release(gstate);
@@ -132,6 +139,7 @@ namespace Moses {
     int pid = fork();
     if (pid > 0) {
       // PARENT PROCESS; We wait for the child to signal okay
+      child_pid.reset(new int(pid));
       int message = 1;
       message_queue::size_type recvd_size;
       unsigned int priority;
@@ -143,7 +151,7 @@ namespace Moses {
         // And continue execution
       } else {
         VERBOSE(1, "PyMoses sent bad message!" << endl);
-        StopThread();
+        // TODO: Clean exit
       }
     } else if (pid == 0) {
       // CHILD PROCESS; Start pymoses and pipe the results back
@@ -152,9 +160,10 @@ namespace Moses {
         // TODO: Clean exit
       }
       while (fgets( line, sizeof line, fpipe)) {
-        printf("%s", line);
+        // printf("%s", line);
       }
       pclose(fpipe);
+      exit(0);
     } else {
       VERBOSE(1, "Forking error" << endl);
       // TODO: Clean exit
@@ -311,6 +320,7 @@ namespace Moses {
       if (message != 1) {
         VERBOSE(1, "Received wrong message from PyMoses while waiting for eval"
                    << endl);
+        // TODO: Clean exit
       }
     }
   }

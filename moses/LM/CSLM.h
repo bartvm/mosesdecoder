@@ -38,6 +38,7 @@ protected:
   boost::thread_specific_ptr<NpyIter> ngrams;
   boost::thread_specific_ptr<NpyIter> scores;
   boost::thread_specific_ptr<int> batch_count;
+  boost::thread_specific_ptr<int> child_pid;
 
   // A function to retrieve the thread ID
   string ThisThreadId(string suffix) const;

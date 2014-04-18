@@ -3,6 +3,7 @@
 #include <boost/interprocess/mapped_region.hpp>
 #include <boost/interprocess/ipc/message_queue.hpp>
 #include "Python.h"
+#define NPY_NO_DEPRECATED_API NPY_1_7_API_VERSION
 #include <numpy/ndarrayobject.h>
 
 using namespace boost::interprocess;
@@ -31,35 +32,20 @@ using namespace std;
 #define VERBOSE(level,str) { TRACE_ERR(str); }
 #define IFVERBOSE(level)
 
-void OpenSharedMemory(string name, mapped_region* region) {
-  shared_memory_object shm_obj(
-    open_only, name.c_str(),
-    read_write
-  );
-  region = new mapped_region(
-    shm_obj, read_write
-  );
-}
-
-void OpenMessageQueue(string name, message_queue* mq) {
-  mq = new message_queue(open_only, name.c_str());
-}
-
 void init_numpy() {
   import_array();
 }
-//
+
 PyObject* LoadPython() {
-// void LoadPython() {
   // Load Python
   Py_Initialize();
   init_numpy();
-  PyObject* pGet;
+
   // Load the module and functions
+  PyObject* pGet;
   PyObject* pName = PyString_FromString("cslm");
   PyObject* pModule = PyImport_Import(pName);
   Py_DECREF(pName);
-  Py_INCREF(pModule);
   if (pModule != NULL) {
     pGet = PyObject_GetAttrString(pModule, "get");
     if (!pGet || !PyCallable_Check(pGet)) {
@@ -76,6 +62,8 @@ PyObject* LoadPython() {
       PyErr_Print();
     }
   }
+  Py_DECREF(pModule);
+  Py_DECREF(pGet);
   return pGet;
 }
 
@@ -126,12 +114,9 @@ int main(int argc, char* argv[]) {
                                                      NPY_FLOAT,
                                                      scores_region.get_address());
 
-  VERBOSE(1, "Testing Python function" << endl);
   PyObject *pArgs = PyTuple_New(3);
   PyTuple_SetItem(pArgs, 0, ngrams_array);
   PyTuple_SetItem(pArgs, 1, scores_array);
-  PyTuple_SetItem(pArgs, 2, PyInt_FromLong(10));
-  PyObject_CallObject(pGet, pArgs);
 
   // Signal that everything is good to go!
   int message = 0;
@@ -140,21 +125,29 @@ int main(int argc, char* argv[]) {
   // Listen for messages
   message_queue::size_type recvd_size;
   unsigned int priority;
+  PyObject* batch_size;
+  PyObject* result;
+  VERBOSE(1, "Its : " << result->ob_refcnt << endl);
   while (true) {
     message = 0;
     m2py.receive(&message, sizeof(message), recvd_size, priority);
     if (message > 0) {
-      PyTuple_SetItem(pArgs, 2, PyInt_FromLong(message));
-      PyObject* result = PyObject_CallObject(pGet, pArgs);
+      batch_size = PyInt_FromLong(message);
+      PyTuple_SetItem(pArgs, 2, batch_size);
+      result = PyObject_CallObject(pGet, pArgs);
       if (result == Py_True) {
         message = 1;
       } else {
         message = 2;
       }
+      Py_DECREF(result);
+      Py_DECREF(Py_True);
       py2m.send(&message, sizeof(int), 0);
     } else if (message == -1) {
       // Message -1 means that Moses is quitting (CSLM object destructor)
-      message_queue::remove(py2m_id.c_str());
+      // Let Moses know we got the message so that it can destroy the MQs
+      message = 1;
+      py2m.send(&message, sizeof(int), 0);
       break;
     } else {
       // Something went wrong
@@ -164,6 +157,8 @@ int main(int argc, char* argv[]) {
       break;
     }
   }
+  Py_DECREF(pGet);
+  Py_DECREF(pArgs);
   Py_Finalize();
   VERBOSE(1, "PyMoses terminated" << endl);
 }
