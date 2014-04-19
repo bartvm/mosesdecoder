@@ -90,8 +90,8 @@ namespace Moses {
     shared_memory_object ngrams_shm_obj(open_or_create, ThisThreadId("ngrams").c_str(), read_write);
     shared_memory_object scores_shm_obj(open_or_create, ThisThreadId("scores").c_str(), read_write);
     // TODO: These numbers should be calculated more precisely (now 1MB for each)
-    ngrams_shm_obj.truncate(1048576);
-    scores_shm_obj.truncate(1048576);
+    ngrams_shm_obj.truncate(10485760);
+    scores_shm_obj.truncate(10485760);
     ngrams_region_tsp.reset(new mapped_region(ngrams_shm_obj, read_write));
     scores_region_tsp.reset(new mapped_region(scores_shm_obj, read_write));
     memset(ngrams_region_tsp->get_address(), 1, ngrams_region_tsp->get_size());
@@ -102,7 +102,7 @@ namespace Moses {
     PyGILState_STATE gstate;
     gstate = PyGILState_Ensure();
     int ngrams_nd = 2;
-    npy_intp ngrams_dims[2] = {10000, 7};
+    npy_intp ngrams_dims[2] = {25000, 7};
     PyObject* ngrams_array = PyArray_SimpleNewFromData(ngrams_nd, ngrams_dims,
                                                        NPY_INT,
                                                        ngrams_region_tsp->get_address());
@@ -113,7 +113,7 @@ namespace Moses {
     ngrams.reset(ngrams_iter);
 
     int scores_nd = 1;
-    npy_intp scores_dims[1] = {10000};
+    npy_intp scores_dims[1] = {25000};
     PyObject* scores_array = PyArray_SimpleNewFromData(scores_nd, scores_dims,
                                                        NPY_FLOAT,
                                                        scores_region_tsp->get_address());
