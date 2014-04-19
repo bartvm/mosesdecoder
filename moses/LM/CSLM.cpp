@@ -58,6 +58,7 @@ namespace Moses {
     message_queue::remove(ThisThreadId("m2py").c_str());
     message_queue::remove(ThisThreadId("py2m").c_str());
 
+    // We wait for our Moses-fork to exit
     waitpid(*child_pid.get(), NULL, 0);
 
     // Clean up shared memory
@@ -163,6 +164,8 @@ namespace Moses {
         // printf("%s", line);
       }
       pclose(fpipe);
+      // We have to exit here, else it will try translating everything again
+      // but die (because the shared memory/MQs have been deleted)
       exit(0);
     } else {
       VERBOSE(1, "Forking error" << endl);
