@@ -31,10 +31,10 @@ protected:
   // The NumPy objects that wrap the data
   boost::thread_specific_ptr<mapped_region> ngrams_region_tsp;
   boost::thread_specific_ptr<mapped_region> scores_region_tsp;
-  // static void NpyIterCleanup(NpyIter *ptr) {
+  static void NpyIterCleanup(NpyIter *ptr) {
   //   // Not sure if we should DECREF
   //   // or just let it be
-  // }
+  }
   boost::thread_specific_ptr<NpyIter> ngrams;
   boost::thread_specific_ptr<NpyIter> scores;
   boost::thread_specific_ptr<int> batch_count;

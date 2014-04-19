@@ -119,33 +119,31 @@ int main(int argc, char* argv[]) {
   PyTuple_SetItem(pArgs, 1, scores_array);
 
   // Signal that everything is good to go!
-  int message = 0;
-  py2m.send(&message, sizeof(int), 0);
+  int status = 0;
+  py2m.send(&status, sizeof(int), 0);
 
   // Listen for messages
   message_queue::size_type recvd_size;
   unsigned int priority;
-  PyObject* batch_size;
-  PyObject* result;
   while (true) {
-    message = 0;
-    m2py.receive(&message, sizeof(message), recvd_size, priority);
-    if (message > 0) {
-      batch_size = PyInt_FromLong(message);
-      PyTuple_SetItem(pArgs, 2, batch_size);
-      result = PyObject_CallObject(pGet, pArgs);
+    int batch_size = 0;
+    m2py.receive(&batch_size, sizeof(batch_size), recvd_size, priority);
+    if (batch_size > 0) {
+      PyObject* py_batch_size = PyInt_FromSize_t(batch_size);
+      PyTuple_SetItem(pArgs, 2, py_batch_size);
+      PyObject* result = PyObject_CallObject(pGet, pArgs);
+      int message;
       if (result == Py_True) {
         message = 1;
       } else {
         message = 2;
       }
-      Py_DECREF(result);
-      Py_DECREF(Py_True);
       py2m.send(&message, sizeof(int), 0);
-    } else if (message == -1) {
+      Py_DECREF(result);
+    } else if (batch_size == -1) {
       // Message -1 means that Moses is quitting (CSLM object destructor)
       // Let Moses know we got the message so that it can destroy the MQs
-      message = 1;
+      int message = 1;
       py2m.send(&message, sizeof(int), 0);
       break;
     } else {

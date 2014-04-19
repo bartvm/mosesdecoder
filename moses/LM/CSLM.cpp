@@ -1,13 +1,13 @@
 #include "CSLM.h"
+#include <sys/wait.h>
 
 using namespace std;
 using namespace boost::interprocess;
 
 namespace Moses {
   CSLM::CSLM(const std::string &line)
-    : LanguageModelSingleFactor(line) { // ,
-      // py_to_moses(&MessageQueueCleanup), moses_to_py(&MessageQueueCleanup) //,
-      // ngrams(&NpyIterCleanup), scores(&NpyIterCleanup) {
+    : LanguageModelSingleFactor(line),
+      ngrams(&NpyIterCleanup), scores(&NpyIterCleanup) {
     ReadParameters();
 
     FactorCollection &factorCollection = FactorCollection::Instance();
