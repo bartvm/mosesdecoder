@@ -32,8 +32,7 @@ protected:
   boost::thread_specific_ptr<mapped_region> ngrams_region_tsp;
   boost::thread_specific_ptr<mapped_region> scores_region_tsp;
   static void NpyIterCleanup(NpyIter *ptr) {
-  //   // Not sure if we should DECREF
-  //   // or just let it be
+      // NpyIter_Deallocate(*ptr);
   }
   boost::thread_specific_ptr<NpyIter> ngrams;
   boost::thread_specific_ptr<NpyIter> scores;

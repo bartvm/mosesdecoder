@@ -90,8 +90,8 @@ namespace Moses {
     shared_memory_object ngrams_shm_obj(open_or_create, ThisThreadId("ngrams").c_str(), read_write);
     shared_memory_object scores_shm_obj(open_or_create, ThisThreadId("scores").c_str(), read_write);
     // TODO: These numbers should be calculated more precisely (now 1MB for each)
-    ngrams_shm_obj.truncate(10485760);
-    scores_shm_obj.truncate(10485760);
+    ngrams_shm_obj.truncate(2097152);
+    scores_shm_obj.truncate(1048576);
     ngrams_region_tsp.reset(new mapped_region(ngrams_shm_obj, read_write));
     scores_region_tsp.reset(new mapped_region(scores_shm_obj, read_write));
     memset(ngrams_region_tsp->get_address(), 1, ngrams_region_tsp->get_size());
@@ -130,9 +130,7 @@ namespace Moses {
     // Create the PyMoses command to execute and pipe PyMoses's stdout back
     // to the parent
     FILE *fpipe;
-    boost::filesystem::path cwd(boost::filesystem::current_path());
-    std::string pymoses_path = cwd.string() + "/bin/pymoses";
-    std::string command = pymoses_path + " " + ThisThreadId("");
+    std::string command = "pymoses " + ThisThreadId("");
     char line[256];
 
     // Fork the current process, message PyMoses in the child process,
@@ -279,8 +277,9 @@ namespace Moses {
                           State* finalState) const {
     // Get the iterator of the scores
     NpyIter* iter = scores.get();
-    NpyIter_IterNextFunc *iternext = NpyIter_GetIterNext(iter, NULL);
-    int **dataptr = (int**) NpyIter_GetDataPtrArray(iter);
+    NpyIter_IterNextFunc *iternext = NpyIter_GetIterNext(iter, (char**)"Unable to get scores InterNextFunc");
+    UTIL_THROW_IF2(iternext == NULL, "Unable to get scores InterNextFunc");
+    float **dataptr = (float**) NpyIter_GetDataPtrArray(iter);
 
     // Construct the score result
     LMResult ret;
@@ -331,8 +330,10 @@ namespace Moses {
   void CSLM::ClearBuffer() {
     // All the hypotheses in this batch have been scored, so delete them from
     // the shared memory
-    NpyIter_Reset(ngrams.get(), NULL);
-    NpyIter_Reset(scores.get(), NULL);
+    int result_ngrams = NpyIter_Reset(ngrams.get(), (char**)"Unable to reset ngrams");
+    UTIL_THROW_IF2(result_ngrams == NPY_FAIL, "Unable to reset ngrams");
+    int result_scores = NpyIter_Reset(scores.get(), (char**)"Unable to reset scores");
+    UTIL_THROW_IF2(result_scores == NPY_FAIL, "Unable to reset scores");
     int* n = batch_count.get();
     *n = 0;
   }
