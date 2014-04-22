@@ -19,7 +19,7 @@ logging.debug("Imported modules")
 
 theano.config.optimizer = 'None'
 
-with open('europarl_cslm.pkl') as f:
+with open('/home/vanmerb/mosesdecoder/europarl_cslm.pkl') as f:
     model = cPickle.load(f)
 
 logging.debug("Loaded model")

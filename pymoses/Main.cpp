@@ -104,12 +104,12 @@ int main(int argc, char* argv[]) {
   }
 
   int ngrams_nd = 2;
-  npy_intp ngrams_dims[2] = {10000, 7};
+  npy_intp ngrams_dims[2] = {25000, 7};
   PyObject* ngrams_array = PyArray_SimpleNewFromData(ngrams_nd, ngrams_dims,
                                                      NPY_INT,
                                                      ngrams_region.get_address());
   int scores_nd = 1;
-  npy_intp scores_dims[1] = {10000};
+  npy_intp scores_dims[1] = {25000};
   PyObject* scores_array = PyArray_SimpleNewFromData(scores_nd, scores_dims,
                                                      NPY_FLOAT,
                                                      scores_region.get_address());
