@@ -17,8 +17,6 @@ profmode = ProfileMode(optimizer='fast_run',
 
 logging.debug("Imported modules")
 
-theano.config.optimizer = 'None'
-
 with open('/home/vanmerb/mosesdecoder/europarl_cslm.pkl') as f:
     model = cPickle.load(f)
 
