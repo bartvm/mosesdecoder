@@ -25,6 +25,7 @@ protected:
   std::map<int, StatefulFeatureFunction*> m_stateful_ffs;
   std::vector<Hypothesis*> m_partial_hypos;
   uint32_t m_batch_size;
+  boost::thread_specific_ptr<int> cur_batch_size;
   int m_max_stack_size;
 
   // functions for creating hypotheses

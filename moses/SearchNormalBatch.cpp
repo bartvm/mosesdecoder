@@ -14,6 +14,7 @@ SearchNormalBatch::SearchNormalBatch(Manager& manager, const InputType &source, 
   :SearchNormal(manager, source, transOptColl)
   ,m_batch_size(25000)
 {
+  cur_batch_size.reset(new int(0));
   m_max_stack_size = StaticData::Instance().GetMaxHypoStackSize();
 
   // Split the feature functions into sets of stateless, stateful
@@ -109,7 +110,7 @@ ExpandHypothesis(const Hypothesis &hypothesis,
                  const TranslationOption &transOpt, float expectedScore)
 {
   // Check if the number of partial hypotheses exceeds the batch size.
-  if (m_partial_hypos.size() >= m_batch_size) {
+  if (*cur_batch_size.get() >= m_batch_size - 10) {
     EvalAndMergePartialHypos();
   }
 
@@ -138,6 +139,8 @@ ExpandHypothesis(const Hypothesis &hypothesis,
       const FFState* input_state = newHypo->GetPrevHypo() ? newHypo->GetPrevHypo()->GetFFState((*dlm_iter).first) : NULL;
       (*dlm_iter).second->IssueRequestsFor(*newHypo, input_state);
     }
+    int* n = cur_batch_size.get();
+    *n = *n + newHypo->GetCurrTargetLength() + (int) newHypo->IsSourceCompleted();
     m_partial_hypos.push_back(newHypo);
   } else {
 	UTIL_THROW2("can't use early discarding with batch decoding!");
@@ -146,6 +149,7 @@ ExpandHypothesis(const Hypothesis &hypothesis,
 
 void SearchNormalBatch::EvalAndMergePartialHypos()
 {
+  cur_batch_size.reset(new int(0));
   // This releases the buffer and sends the request to Python
   std::map<int, LanguageModel*>::iterator dlm_iter;
   for (dlm_iter = m_dlm_ffs.begin();

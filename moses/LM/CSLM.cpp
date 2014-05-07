@@ -236,6 +236,9 @@ namespace Moses {
     IssuePythonRequest(contextFactor);
 
     // Main loop
+    // TODO: This logic doesn't make sense! Non phrase-boundary n-grams
+    // also need to be scored... This problem needs to be addressed 
+    // here as well as in Implementation.cpp's Evaluate function
     size_t endPos = std::min(startPos + GetNGramOrder() - 2, currEndPos);
     for (size_t currPos = startPos + 1 ; currPos <= endPos ; currPos++) {
       // Shift all args down 1 place
@@ -260,16 +263,6 @@ namespace Moses {
         }
       }
       IssuePythonRequest(contextFactor);
-    } else {
-      if (endPos < currEndPos) {
-        // Need to get the LM state (otherwise the last LM state is fine)
-        for (size_t currPos = endPos+1; currPos <= currEndPos; currPos++) {
-          for (size_t i = 0 ; i < GetNGramOrder() - 1 ; i++) {
-            contextFactor[i] = contextFactor[i + 1];
-          }
-          contextFactor.back() = &hypo.GetWord(currPos);
-        }
-      }
     }
   }
 
