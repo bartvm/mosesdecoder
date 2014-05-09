@@ -167,6 +167,16 @@
 			<locationURI>PARENT-3-PROJECT_LOC/moses/ChartHypothesisCollection.h</locationURI>
 		</link>
 		<link>
+			<name>ChartKBestExtractor.cpp</name>
+			<type>1</type>
+			<locationURI>PARENT-3-PROJECT_LOC/moses/ChartKBestExtractor.cpp</locationURI>
+		</link>
+		<link>
+			<name>ChartKBestExtractor.h</name>
+			<type>1</type>
+			<locationURI>PARENT-3-PROJECT_LOC/moses/ChartKBestExtractor.h</locationURI>
+		</link>
+		<link>
 			<name>ChartManager.cpp</name>
 			<type>1</type>
 			<locationURI>PARENT-3-PROJECT_LOC/moses/ChartManager.cpp</locationURI>
@@ -1067,6 +1077,16 @@
 			<locationURI>PARENT-3-PROJECT_LOC/moses/FF/ControlRecombination.h</locationURI>
 		</link>
 		<link>
+			<name>FF/CountNonTerms.cpp</name>
+			<type>1</type>
+			<locationURI>PARENT-3-PROJECT_LOC/moses/FF/CountNonTerms.cpp</locationURI>
+		</link>
+		<link>
+			<name>FF/CountNonTerms.h</name>
+			<type>1</type>
+			<locationURI>PARENT-3-PROJECT_LOC/moses/FF/CountNonTerms.h</locationURI>
+		</link>
+		<link>
 			<name>FF/CoveredReferenceFeature.cpp</name>
 			<type>1</type>
 			<locationURI>PARENT-3-PROJECT_LOC/moses/FF/CoveredReferenceFeature.cpp</locationURI>
@@ -1192,6 +1212,16 @@
 			<locationURI>virtual:/virtual</locationURI>
 		</link>
 		<link>
+			<name>FF/MaxSpanFreeNonTermSource.cpp</name>
+			<type>1</type>
+			<locationURI>PARENT-3-PROJECT_LOC/moses/FF/MaxSpanFreeNonTermSource.cpp</locationURI>
+		</link>
+		<link>
+			<name>FF/MaxSpanFreeNonTermSource.h</name>
+			<type>1</type>
+			<locationURI>PARENT-3-PROJECT_LOC/moses/FF/MaxSpanFreeNonTermSource.h</locationURI>
+		</link>
+		<link>
 			<name>FF/OSM-Feature</name>
 			<type>2</type>
 			<locationURI>virtual:/virtual</locationURI>
@@ -1240,6 +1270,36 @@
 			<name>FF/PhrasePenalty.h</name>
 			<type>1</type>
 			<locationURI>PARENT-3-PROJECT_LOC/moses/FF/PhrasePenalty.h</locationURI>
+		</link>
+		<link>
+			<name>FF/ReferenceComparison.cpp</name>
+			<type>1</type>
+			<locationURI>PARENT-3-PROJECT_LOC/moses/FF/ReferenceComparison.cpp</locationURI>
+		</link>
+		<link>
+			<name>FF/ReferenceComparison.h</name>
+			<type>1</type>
+			<locationURI>PARENT-3-PROJECT_LOC/moses/FF/ReferenceComparison.h</locationURI>
+		</link>
+		<link>
+			<name>FF/RuleAmbiguity.cpp</name>
+			<type>1</type>
+			<locationURI>PARENT-3-PROJECT_LOC/moses/FF/RuleAmbiguity.cpp</locationURI>
+		</link>
+		<link>
+			<name>FF/RuleAmbiguity.h</name>
+			<type>1</type>
+			<locationURI>PARENT-3-PROJECT_LOC/moses/FF/RuleAmbiguity.h</locationURI>
+		</link>
+		<link>
+			<name>FF/SetSourcePhrase.cpp</name>
+			<type>1</type>
+			<locationURI>PARENT-3-PROJECT_LOC/moses/FF/SetSourcePhrase.cpp</locationURI>
+		</link>
+		<link>
+			<name>FF/SetSourcePhrase.h</name>
+			<type>1</type>
+			<locationURI>PARENT-3-PROJECT_LOC/moses/FF/SetSourcePhrase.h</locationURI>
 		</link>
 		<link>
 			<name>FF/SkeletonStatefulFF.cpp</name>
@@ -1334,12 +1394,12 @@
 		<link>
 			<name>FF/TreeStructureFeature.cpp</name>
 			<type>1</type>
-			<location>/home/hieu/workspace/github/mosesdecoder/moses/FF/TreeStructureFeature.cpp</location>
+			<locationURI>PARENT-3-PROJECT_LOC/moses/FF/TreeStructureFeature.cpp</locationURI>
 		</link>
 		<link>
 			<name>FF/TreeStructureFeature.h</name>
 			<type>1</type>
-			<location>/home/hieu/workspace/github/mosesdecoder/moses/FF/TreeStructureFeature.h</location>
+			<locationURI>PARENT-3-PROJECT_LOC/moses/FF/TreeStructureFeature.h</locationURI>
 		</link>
 		<link>
 			<name>FF/UnknownWordPenaltyProducer.cpp</name>
@@ -1865,6 +1925,16 @@
 			<name>TranslationModel/CYKPlusParser/ChartRuleLookupManagerSkeleton.h</name>
 			<type>1</type>
 			<locationURI>PARENT-3-PROJECT_LOC/moses/TranslationModel/CYKPlusParser/ChartRuleLookupManagerSkeleton.h</locationURI>
+		</link>
+		<link>
+			<name>TranslationModel/CYKPlusParser/CompletedRuleCollection.cpp</name>
+			<type>1</type>
+			<locationURI>PARENT-3-PROJECT_LOC/moses/TranslationModel/CYKPlusParser/CompletedRuleCollection.cpp</locationURI>
+		</link>
+		<link>
+			<name>TranslationModel/CYKPlusParser/CompletedRuleCollection.h</name>
+			<type>1</type>
+			<locationURI>PARENT-3-PROJECT_LOC/moses/TranslationModel/CYKPlusParser/CompletedRuleCollection.h</locationURI>
 		</link>
 		<link>
 			<name>TranslationModel/CYKPlusParser/DotChart.h</name>

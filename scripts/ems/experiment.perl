@@ -1,6 +1,7 @@
 #!/usr/bin/perl -w
 
-# $Id: experiment.perl 1095 2009-11-16 18:19:49Z philipp $
+# Experiment Management System
+# Documentation at http://www.statmt.org/moses/?n=FactoredTraining.EMS
 
 use strict;
 use Getopt::Long "GetOptions";
@@ -17,7 +18,7 @@ sub trim($)
 my $host = `hostname`; chop($host);
 print STDERR "STARTING UP AS PROCESS $$ ON $host AT ".`date`;
 
-my ($CONFIG_FILE,$EXECUTE,$NO_GRAPH,$CONTINUE,$FINAL,$VERBOSE,$IGNORE_TIME);
+my ($CONFIG_FILE,$EXECUTE,$NO_GRAPH,$CONTINUE,$FINAL,$VERBOSE,$IGNORE_TIME,$DELETE_CRASHED);
 my $SLEEP = 2;
 my $META = "$RealBin/experiment.meta";
 
@@ -34,6 +35,7 @@ my $CLUSTER;
 die("experiment.perl -config config-file [-exec] [-no-graph]")
     unless  &GetOptions('config=s' => \$CONFIG_FILE,
 			'continue=i' => \$CONTINUE,
+			'delete-crashed=i' => \$DELETE_CRASHED,
 			'ignore-time' => \$IGNORE_TIME,
 			'exec' => \$EXECUTE,
 			'cluster' => \$CLUSTER,
@@ -48,8 +50,10 @@ if (! -e "steps") { `mkdir -p steps`; }
 
 die("error: could not find config file") 
     unless ($CONFIG_FILE && -e $CONFIG_FILE) ||
-   	   ($CONTINUE && -e &steps_file("config.$CONTINUE",$CONTINUE));
+   	   ($CONTINUE && -e &steps_file("config.$CONTINUE",$CONTINUE)) ||
+   	   ($DELETE_CRASHED && -e &steps_file("config.$DELETE_CRASHED",$DELETE_CRASHED));
 $CONFIG_FILE = &steps_file("config.$CONTINUE",$CONTINUE) if $CONTINUE && !$CONFIG_FILE;
+$CONFIG_FILE = &steps_file("config.$DELETE_CRASHED",$DELETE_CRASHED) if $DELETE_CRASHED && !$CONFIG_FILE;
 
 my (@MODULE,
     %MODULE_TYPE,
@@ -83,7 +87,9 @@ chdir(&check_and_get("GENERAL:working-dir"));
 
 my $VERSION = 0;     # experiment number
 $VERSION = $CONTINUE if $CONTINUE;
-&compute_version_number() if $EXECUTE && !$CONTINUE;
+$VERSION = $DELETE_CRASHED if $DELETE_CRASHED;
+
+&compute_version_number() if $EXECUTE && !$CONTINUE && !$DELETE_CRASHED;
 `mkdir -p steps/$VERSION`;
 
 &log_config();
@@ -101,6 +107,11 @@ my (%NEEDED,     # mapping of input files to step numbers
 print "\nFIND DEPENDENCIES BETWEEN STEPS\n";
 my @DEPENDENCY;
 &find_dependencies();
+
+if (defined($DELETE_CRASHED)) {
+  &delete_crashed($DELETE_CRASHED);
+  exit;
+}
 
 print "\nCHECKING IF OLD STEPS ARE RE-USABLE\n";
 my @RE_USE;      # maps re-usable steps to older versions
@@ -396,7 +407,7 @@ sub log_config {
     my $dir = &check_and_get("GENERAL:working-dir");
     `mkdir -p $dir/steps`;
     my $config_file = &steps_file("config.$VERSION",$VERSION);
-    `cp $CONFIG_FILE $config_file` unless $CONTINUE;
+    `cp $CONFIG_FILE $config_file` unless $CONTINUE || $DELETE_CRASHED;
     open(PARAMETER,">".&steps_file("parameter.$VERSION",$VERSION)) or die "Cannot open: $!";
     foreach my $parameter (sort keys %CONFIG) {
 	print PARAMETER "$parameter =";
@@ -678,6 +689,50 @@ sub get_sets {
     return @SET;
 }
 
+# delete step files for steps that have crashed
+sub delete_crashed() {
+  my $crashed = 0;
+  for(my $i=0;$i<=$#DO_STEP;$i++) {
+    my $step_file = &versionize(&step_file($i),$DELETE_CRASHED);
+    next unless -e $step_file;
+    next unless &check_if_crashed($i,$DELETE_CRASHED);
+
+    # step file
+    if ($EXECUTE) {
+      `rm $step_file $step_file.*`;
+      print "deleted crashed step $step_file\n";
+    }
+    print "crashed: $step_file\n";
+
+    # output
+    &delete_output(&get_default_file(&deconstruct_name($DO_STEP[$i])));
+    
+    $crashed++;
+  }
+  print "run with -exec to delete steps\n" if $crashed && !$EXECUTE;
+  print "nothing to do\n" unless $crashed;
+}
+
+sub delete_output {
+  my ($file) = @_;
+  if (-d $file) {
+    print "\tdelete directory $file\n";
+    `rm -r $file` if $EXECUTE;
+  }
+  elsif (-e $file) {
+    print "\tdelete file $file\n";
+    `rm $file` if $EXECUTE;
+  } 
+  else {
+    my @FILES = `ls $file.* 2>/dev/null`;
+    foreach (my @FILES) {
+      print "\tdelete file $_\n";
+      `rm $_` if $EXECUTE;
+    }
+  }
+}
+
+
 # look for completed step jobs from previous experiments
 sub find_re_use {
     my $dir = &check_and_get("GENERAL:working-dir");    
@@ -695,7 +750,7 @@ sub find_re_use {
 	for(my $i=0;$i<=$#DO_STEP;$i++) {
 #	    next if $RE_USE[$i]; # already found one
 	    my $pattern = &step_file($i);
-	    $pattern =~ s/\+/\\+/; # escape plus signes in file names
+	    $pattern =~ s/\+/\\+/; # escape plus signs in file names
 	    $pattern = "^$pattern.(\\d+).INFO\$";
 	    $pattern =~ s/.+\/([^\/]+)$/$1/; # ignore path
 	    next unless $info_file =~ /$pattern/;
@@ -1048,6 +1103,9 @@ sub define_step {
 # including checks, if needed to be executed, waiting for completion, and error detection
 
 sub execute_steps {
+    my $running_file = &steps_file("running.$VERSION",$VERSION);
+    `touch $running_file`;
+
     for(my $i=0;$i<=$#DO_STEP;$i++) {
 	$DONE{$i}++ if $RE_USE[$i];
     }
@@ -1143,7 +1201,6 @@ sub execute_steps {
 		    $active--;
 		}
 	    }
-	    my $running_file = &steps_file("running.$VERSION",$VERSION);
 	    `touch $running_file`;
 	}    
     }
@@ -1325,32 +1382,33 @@ sub get_parameters_relevant_for_re_use {
 sub check_if_crashed {
     my ($i,$version) = @_;
     $version = $VERSION unless $version; # default: current version
+    my $file = &versionize(&step_file($i),$version).".STDERR";
 
     # while running, sometimes the STDERR file is slow in appearing - wait a bit just in case
     if ($version == $VERSION) {
       my $j = 0;
-      while (! -e &versionize(&step_file($i),$version).".STDERR" && $j < 100) {
+      while (! -e $file && $j < 100) {
         sleep(5);
         $j++;
       }
     }
 
     #print "checking if $DO_STEP[$i]($version) crashed...\n";
-    return 1 if ! -e &versionize(&step_file($i),$version).".STDERR";
+    return 1 if ! -e $file;
 
-    my $file = &versionize(&step_file($i),$version).".STDERR";
-    my $error = 0;
-
+    # check digest file (if it exists)
     if (-e $file.".digest") {
+        my $error = 0;
 	open(DIGEST,$file.".digest") or die "Cannot open: $!";
 	while(<DIGEST>) {
-	    $error++;
 	    print "\t$DO_STEP[$i]($version) crashed: $_" if $VERBOSE;
+            $error++;
 	}
 	close(DIGEST);
 	return $error;
     }
 
+    # check against specified error patterns
     my @DIGEST;
     open(ERROR,$file) or die "Cannot open: $!";
     while(<ERROR>) {
@@ -1371,20 +1429,28 @@ sub check_if_crashed {
 		if (!$not_error) {
 		        push @DIGEST,$pattern;
 			print "\t$DO_STEP[$i]($version) crashed: $pattern\n" if $VERBOSE;
-			$error++;
 		}
 	    }
 	}
-        last if $error>10
+        last if scalar(@DIGEST)>10
     }
     close(ERROR);
 
+    # check if output file empty
+    my $output = &get_default_file(&deconstruct_name($DO_STEP[$i]));
+    print STDERR "".$DO_STEP[$i]." -> $output\n";
+    # currently only works for single output file
+    if (-e $output && -z $output) {
+      push @DIGEST,"output file $output is empty";
+    }
+
+    # save digest file
     open(DIGEST,">$file.digest") or die "Cannot open: $!";
     foreach (@DIGEST) {
 	print DIGEST $_."\n";
     }
     close(DIGEST);
-    return $error;
+    return scalar(@DIGEST);
 }
 
 # returns the name of the file where the step job is defined in
@@ -2233,10 +2299,14 @@ sub get_config_tables {
 sub define_training_create_config {
     my ($step_id) = @_;
 
-    my ($config,$reordering_table,$phrase_translation_table,$translit_model,$generation_table,$sparse_lexical_features,$domains,$osm, @LM)
+    my ($config,$reordering_table,$phrase_translation_table,$transliteration_pt,$generation_table,$sparse_lexical_features,$domains,$osm, @LM)
 			= &get_output_and_input($step_id);
 
     my $cmd = &get_config_tables($config,$reordering_table,$phrase_translation_table,$generation_table,$domains);
+
+    if($transliteration_pt){
+	 $cmd .= "-transliteration-phrase-table $transliteration_pt ";
+    }	
 
     if($osm){
       
@@ -2623,7 +2693,7 @@ sub define_tuningevaluation_filter {
     my $tuning_flag = !defined($set);
     my $hierarchical = &get("TRAINING:hierarchical-rule-set");
 
-    my ($filter_dir,$input,$phrase_translation_table,$reordering_table,$domains) = &get_output_and_input($step_id);
+    my ($filter_dir,$input,$phrase_translation_table,$reordering_table,$domains,$transliteration_table) = &get_output_and_input($step_id);
 
     my $binarizer;
     $binarizer = &backoff_and_get("EVALUATION:$set:ttable-binarizer") unless $tuning_flag;
@@ -2683,7 +2753,14 @@ sub define_tuningevaluation_filter {
       
       $cmd .= &get_config_tables($config,$reordering_table,$phrase_translation_table,undef,$domains);
 
+	if (&get("TRAINING:in-decoding-transliteration")) {
+
+		$cmd .= "-transliteration-phrase-table $dir/model/transliteration-phrase-table.$VERSION ";
+	}	
+
+
       $cmd .= "-lm 0:3:$config:8\n"; # dummy kenlm 3-gram model on factor 0
+
     }
 
     # filter command
@@ -3257,7 +3334,7 @@ sub get_default_file {
 
     # if from a step that is redone, get version number
     my $version = 0;
-    $version = $RE_USE[$STEP_LOOKUP{$step}] if (defined($STEP_LOOKUP{$step}));
+    $version = $RE_USE[$STEP_LOOKUP{$step}] if defined($STEP_LOOKUP{$step}) && $#RE_USE >= $STEP_LOOKUP{$step};
     $version = "*" if $version > 1e6;    # any if re-use checking
     $version = $VERSION unless $version; # current version if no re-use
 

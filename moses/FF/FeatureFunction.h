@@ -20,6 +20,7 @@ class WordsBitmap;
 class WordsRange;
 class FactorMask;
 class InputPath;
+class StackVec;
 
 /** base class for all feature functions.
  */
@@ -114,6 +115,7 @@ public:
   virtual void Evaluate(const InputType &input
                         , const InputPath &inputPath
                         , const TargetPhrase &targetPhrase
+                        , const StackVec *stackVec
                         , ScoreComponentCollection &scoreBreakdown
                         , ScoreComponentCollection *estimatedFutureScore = NULL) const = 0;
 

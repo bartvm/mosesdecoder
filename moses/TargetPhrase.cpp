@@ -146,7 +146,7 @@ void TargetPhrase::Evaluate(const InputType &input, const InputPath &inputPath)
   for (size_t i = 0; i < ffs.size(); ++i) {
     const FeatureFunction &ff = *ffs[i];
     if (! staticData.IsFeatureFunctionIgnored( ff )) {
-      ff.Evaluate(input, inputPath, *this, m_scoreBreakdown, &futureScoreBreakdown);
+      ff.Evaluate(input, inputPath, *this, NULL, m_scoreBreakdown, &futureScoreBreakdown);
     }
   }
   float weightedScore = m_scoreBreakdown.GetWeightedScore();
@@ -281,6 +281,11 @@ std::ostream& operator<<(std::ostream& os, const TargetPhrase& tp)
   os << tp.GetAlignNonTerm() << flush;
   os << ": c=" << tp.m_fullScore << flush;
   os << " " << tp.m_scoreBreakdown << flush;
+
+  const Phrase *sourcePhrase = tp.GetRuleSource();
+  if (sourcePhrase) {
+    os << " sourcePhrase=" << *sourcePhrase << flush;
+  }
 
   return os;
 }
