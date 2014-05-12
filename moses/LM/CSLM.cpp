@@ -3,7 +3,7 @@
 
 using namespace std;
 using namespace boost::interprocess;
-using namespace boost::posix_time
+using namespace boost::posix_time;
 
 namespace Moses {
   CSLM::CSLM(const std::string &line)
@@ -83,6 +83,10 @@ namespace Moses {
     VERBOSE(1, "Waiting for reply from PyMoses" << endl);
     py2m_tsp->receive(&message, sizeof(message), recvd_size, priority);
     VERBOSE(1, "Received reply. Removing message queues and memory." << endl);
+    Cleanup();
+  }
+
+  void CSLM::Cleanup() {
     message_queue::remove(ThisThreadId("m2py").c_str());
     message_queue::remove(ThisThreadId("py2m").c_str());
 
@@ -171,6 +175,7 @@ namespace Moses {
       ptime timeout = second_clock::universal_time() + seconds(5);
       if(!py2m_tsp->timed_receive(&message, sizeof(message), recvd_size,
                                   priority, timeout)) {
+        Cleanup();
         UTIL_THROW(util::Exception, "No signal from PyMoses.");
       }
       VERBOSE(1, "Waiting for OK sign from process " << pid
@@ -181,6 +186,8 @@ namespace Moses {
         // And continue execution
       } else {
         VERBOSE(1, "PyMoses sent bad message!" << endl);
+        Cleanup();
+        UTIL_THROW(util::Exception, "Terminating!");
         // TODO: Clean exit
       }
     } else if (pid == 0) {

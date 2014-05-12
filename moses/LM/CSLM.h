@@ -55,6 +55,7 @@ public:
   ~CSLM();
   void LoadThread();
   void StopThread();
+  void Cleanup();
 
   void IssuePythonRequest(vector<const Word*>);
   void IssueRequestsFor(Hypothesis& hypo, const FFState* input_state);
