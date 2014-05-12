@@ -3,6 +3,7 @@
 
 using namespace std;
 using namespace boost::interprocess;
+using namespace boost::posix_time
 
 namespace Moses {
   CSLM::CSLM(const std::string &line)
@@ -27,11 +28,33 @@ namespace Moses {
   CSLM::~CSLM() {
     PyEval_RestoreThread(state);
     Py_Finalize();
+    // int child_status;
+    // This segfaults if the process doesn't exit!
+    // Also, this is called outside a thread
+    // pid_t result = waitpid(*child_pid.get(), &child_status, WNOHANG);
+    // pid_t result = 2;
+    // if (result == 0) {
+    //   // PyMoses seems to be still alive, this shouldn't happen!
+    //   VERBOSE(1, "Moses is exiting, but PyMoses is still alive. " <<
+    //              "Trying to terminate..." << endl);
+    //   StopThread();
+    // } else if (result == -1) {
+    //   VERBOSE(1, "Moses is exiting, but unable to get PyMoses status. " <<
+    //               "Trying to terminate anyway..." << endl);
+    //   StopThread();
+    // } else {
+    //   VERBOSE(1, "PyMoses seems to have exited." << endl);
+    // }
   }
 
   void CSLM::Load() {
     Py_Initialize();
-    import_array();
+    VERBOSE(1, "Initialized Python" << endl);
+    int ret = _import_array();
+    UTIL_THROW_IF2(ret < 0, "Unable to load NumPy. Please make sure that you "
+                            "are loading the same NumPy that was used "
+                            "during compilation (" << NPY_VERSION << ")");
+    VERBOSE(1, "Initialized NumPy" << endl);
     // Save the current thread state, release implicit GIL
     state = PyEval_SaveThread();
   }
@@ -51,15 +74,17 @@ namespace Moses {
   void CSLM::StopThread() {
     // Delete the message queues as soon as PyMoses responds
     int message = -1;
+    VERBOSE(1, "Sending termination message to PyMoses" << endl);
     m2py_tsp->send(&message, sizeof(int), 0);
     message_queue::size_type recvd_size;
     unsigned int priority;
+    // Set &message to NULL?
+    // Make this a time receive?
+    VERBOSE(1, "Waiting for reply from PyMoses" << endl);
     py2m_tsp->receive(&message, sizeof(message), recvd_size, priority);
+    VERBOSE(1, "Received reply. Removing message queues and memory." << endl);
     message_queue::remove(ThisThreadId("m2py").c_str());
     message_queue::remove(ThisThreadId("py2m").c_str());
-
-    // We wait for our Moses-fork to exit
-    waitpid(*child_pid.get(), NULL, 0);
 
     // Clean up shared memory
     shared_memory_object::remove(
@@ -138,10 +163,16 @@ namespace Moses {
     int pid = fork();
     if (pid > 0) {
       // PARENT PROCESS; We wait for the child to signal okay
-      child_pid.reset(new int(pid));
       int message = 1;
       message_queue::size_type recvd_size;
       unsigned int priority;
+      VERBOSE(1, "Waiting for ALIVE sign from process " << pid
+                 << ", child of thread " << ThisThreadId("") << endl);
+      ptime timeout = second_clock::universal_time() + seconds(5);
+      if(!py2m_tsp->timed_receive(&message, sizeof(message), recvd_size,
+                                  priority, timeout)) {
+        UTIL_THROW(util::Exception, "No signal from PyMoses.");
+      }
       VERBOSE(1, "Waiting for OK sign from process " << pid
                  << ", child of thread " << ThisThreadId("") << endl);
       py2m_tsp->receive(&message, sizeof(message), recvd_size, priority);
@@ -155,7 +186,7 @@ namespace Moses {
     } else if (pid == 0) {
       // CHILD PROCESS; Start pymoses and pipe the results back
       if (!(fpipe = (FILE*)popen(command.c_str(), "r"))) {
-        VERBOSE(1, "Problems with pipe" << endl);
+        UTIL_THROW(util::Exception, "Problems with pymoses pipe command");
         // TODO: Clean exit
       }
       while (fgets( line, sizeof line, fpipe)) {

@@ -8,6 +8,7 @@
 #include <boost/interprocess/shared_memory_object.hpp>
 #include <boost/interprocess/mapped_region.hpp>
 #include <boost/interprocess/ipc/message_queue.hpp>
+#include <boost/date_time/posix_time/posix_time.hpp> 
 #include "Python.h"
 #include <numpy/ndarrayobject.h>
 #include "moses/FactorCollection.h"
@@ -32,7 +33,10 @@ protected:
   boost::thread_specific_ptr<mapped_region> ngrams_region_tsp;
   boost::thread_specific_ptr<mapped_region> scores_region_tsp;
   static void NpyIterCleanup(NpyIter *ptr) {
-      // NpyIter_Deallocate(*ptr);
+    // This empty destroyer is necessary;
+    // the default object destruction causes a free() error
+    // Maybe this works?
+    // NpyIter_Deallocate(*ptr);
   }
   boost::thread_specific_ptr<NpyIter> ngrams;
   boost::thread_specific_ptr<NpyIter> scores;
