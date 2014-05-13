@@ -28,23 +28,6 @@ namespace Moses {
   CSLM::~CSLM() {
     PyEval_RestoreThread(state);
     Py_Finalize();
-    // int child_status;
-    // This segfaults if the process doesn't exit!
-    // Also, this is called outside a thread
-    // pid_t result = waitpid(*child_pid.get(), &child_status, WNOHANG);
-    // pid_t result = 2;
-    // if (result == 0) {
-    //   // PyMoses seems to be still alive, this shouldn't happen!
-    //   VERBOSE(1, "Moses is exiting, but PyMoses is still alive. " <<
-    //              "Trying to terminate..." << endl);
-    //   StopThread();
-    // } else if (result == -1) {
-    //   VERBOSE(1, "Moses is exiting, but unable to get PyMoses status. " <<
-    //               "Trying to terminate anyway..." << endl);
-    //   StopThread();
-    // } else {
-    //   VERBOSE(1, "PyMoses seems to have exited." << endl);
-    // }
   }
 
   void CSLM::Load() {
@@ -60,12 +43,8 @@ namespace Moses {
   }
 
   string CSLM::ThisThreadId(string suffix) const {
-    // For reasons beyond my comprehension, storing the thread ID in a
-    // variable doesn't work; multiple threads end up getting the same ID
-    // and the messaging queues/shared memory crash. Requesting the thread ID
-    // through a function like this seems to work (note: using a
-    // thread_shared_ptr isn't any better and results in double free,
-    // corruption, wrong pointers, and more!)
+    // For reasons I do not understand I have been unable to
+    // store the thread ID in a thread specific pointer
     std::stringstream ss;
     ss << boost::this_thread::get_id() << suffix;
     return ss.str();
@@ -80,13 +59,19 @@ namespace Moses {
     unsigned int priority;
     // Set &message to NULL?
     // Make this a time receive?
-    VERBOSE(1, "Waiting for reply from PyMoses" << endl);
-    py2m_tsp->receive(&message, sizeof(message), recvd_size, priority);
-    VERBOSE(1, "Received reply. Removing message queues and memory." << endl);
+    VERBOSE(1, "Waiting for PyMoses to exit before cleaning up" << endl);
+    ptime timeout = second_clock::universal_time() + seconds(10);
+    if(!py2m_tsp->timed_receive(&message, sizeof(message), recvd_size,
+                                priority, timeout)) {
+      VERBOSE(1, "Did not receive a reply from PyMoses... Exiting anyway." << endl);
+    } else {
+      VERBOSE(1, "Received reply. Removing message queues and memory." << endl);
+    }
     Cleanup();
   }
 
   void CSLM::Cleanup() {
+    // Remove message queues
     message_queue::remove(ThisThreadId("m2py").c_str());
     message_queue::remove(ThisThreadId("py2m").c_str());
 
@@ -102,10 +87,6 @@ namespace Moses {
   void CSLM::LoadThread() {
     // Setting up message queues
     VERBOSE(1, "Setting up message queues" << endl);
-    // 0 signals READY
-    // 1 signals NEXT
-    // 2 signals EXIT
-    // other ERROR
 
     m2py_tsp.reset(new message_queue(open_or_create,
                                      ThisThreadId("m2py").c_str(), 1, sizeof(int)));
@@ -166,7 +147,7 @@ namespace Moses {
     // don't continue until child process has answered
     int pid = fork();
     if (pid > 0) {
-      // PARENT PROCESS; We wait for the child to signal okay
+      // PARENT PROCESS; We wait for the child to signal it's alive
       int message = 1;
       message_queue::size_type recvd_size;
       unsigned int priority;
@@ -178,6 +159,7 @@ namespace Moses {
         Cleanup();
         UTIL_THROW(util::Exception, "No signal from PyMoses.");
       }
+      // Now wait for PyMoses to load the models and compile the functions
       VERBOSE(1, "Waiting for OK sign from process " << pid
                  << ", child of thread " << ThisThreadId("") << endl);
       py2m_tsp->receive(&message, sizeof(message), recvd_size, priority);
@@ -188,13 +170,11 @@ namespace Moses {
         VERBOSE(1, "PyMoses sent bad message!" << endl);
         Cleanup();
         UTIL_THROW(util::Exception, "Terminating!");
-        // TODO: Clean exit
       }
     } else if (pid == 0) {
       // CHILD PROCESS; Start pymoses and pipe the results back
       if (!(fpipe = (FILE*)popen(command.c_str(), "r"))) {
         UTIL_THROW(util::Exception, "Problems with pymoses pipe command");
-        // TODO: Clean exit
       }
       while (fgets( line, sizeof line, fpipe)) {
         // printf("%s", line);
@@ -204,8 +184,8 @@ namespace Moses {
       // but die (because the shared memory/MQs have been deleted)
       exit(0);
     } else {
-      VERBOSE(1, "Forking error" << endl);
-      // TODO: Clean exit
+      Cleanup();
+      UTIL_THROW(util::Exception, "Forking error");
     }
   }
 
@@ -220,8 +200,8 @@ namespace Moses {
     NpyIter_IterNextFunc *iternext = NpyIter_GetIterNext(iter, NULL);
     if (iternext == NULL) {
       NpyIter_Deallocate(iter);
-      VERBOSE(1, "Unable to create Numpy iterator function" << endl);
-      // TODO: Clean exit
+      Cleanup();
+      UTIL_THROW(util::Exception, "Unable to create Numpy iterator function");
     }
     int **dataptr = (int**) NpyIter_GetDataPtrArray(iter);
     for (unsigned int i = 0; i < contextFactor.size(); i++) {
@@ -233,11 +213,6 @@ namespace Moses {
           **dataptr = cslm_id;
         } catch (const boost::bad_lexical_cast& e) {
           **dataptr = 1;
-          VERBOSE(3, "Python error: Got non-integer CSLM ID, defaulted to 1 ('"
-                      << contextFactor[i]->GetString(1).as_string()
-                      << "' for word '"
-                      << contextFactor[i]->GetString(0).as_string() << "')"
-                      << endl);
         }
       } else {
         **dataptr = 1;
@@ -309,7 +284,10 @@ namespace Moses {
     // Get the iterator of the scores
     NpyIter* iter = scores.get();
     NpyIter_IterNextFunc *iternext = NpyIter_GetIterNext(iter, (char**)"Unable to get scores InterNextFunc");
-    UTIL_THROW_IF2(iternext == NULL, "Unable to get scores InterNextFunc");
+    if (!iternext) {
+      UTIL_THROW(util::Exception, "Unable to get scores InterNextFunc" <<
+                                  "WARNING! No cleanup was performed");
+    }
     float **dataptr = (float**) NpyIter_GetDataPtrArray(iter);
 
     // Construct the score result
@@ -351,20 +329,26 @@ namespace Moses {
       unsigned int priority;
       py2m_tsp->receive(&message, sizeof(message), recvd_size, priority);
       if (message != 1) {
-        VERBOSE(1, "Received wrong message from PyMoses while waiting for eval"
-                   << endl);
-        // TODO: Clean exit
+        Cleanup();
+        UTIL_THROW(util::Exception, "Received wrong message from PyMoses while waiting for eval");
       }
     }
   }
 
   void CSLM::ClearBuffer() {
     // All the hypotheses in this batch have been scored, so delete them from
-    // the shared memory
+    // the shared memory. NpyIter_Reset is called with a custom error message
+    // so that it does not require the GIL
     int result_ngrams = NpyIter_Reset(ngrams.get(), (char**)"Unable to reset ngrams");
-    UTIL_THROW_IF2(result_ngrams == NPY_FAIL, "Unable to reset ngrams");
+    if (result_ngrams == NPY_FAIL) {
+      Cleanup();
+      UTIL_THROW(util::Exception, "Unable to reset ngrams");
+    }
     int result_scores = NpyIter_Reset(scores.get(), (char**)"Unable to reset scores");
-    UTIL_THROW_IF2(result_scores == NPY_FAIL, "Unable to reset scores");
+    if (result_scores == NPY_FAIL) {
+      Cleanup();
+      UTIL_THROW(util::Exception, "Unable to reset scores");
+    }
     int* n = batch_count.get();
     *n = 0;
   }
