@@ -8,7 +8,8 @@ using namespace boost::posix_time;
 namespace Moses {
   CSLM::CSLM(const std::string &line)
     : LanguageModelSingleFactor(line),
-      ngrams(&NpyIterCleanup), scores(&NpyIterCleanup) {
+      ngrams(&NpyIterCleanup), scores(&NpyIterCleanup),
+      source_sentence(&InputTypeCleanup) {
     ReadParameters();
 
     FactorCollection &factorCollection = FactorCollection::Instance();
@@ -99,13 +100,17 @@ namespace Moses {
     VERBOSE(1, "Setting up shared memory" << endl);
     shared_memory_object ngrams_shm_obj(open_or_create, ThisThreadId("ngrams").c_str(), read_write);
     shared_memory_object scores_shm_obj(open_or_create, ThisThreadId("scores").c_str(), read_write);
+    shared_memory_object source_shm_obj(open_or_create, ThisThreadId("source").c_str(), read_write);
     // TODO: These numbers should be calculated more precisely (now 1MB for each)
     ngrams_shm_obj.truncate(2097152);
     scores_shm_obj.truncate(1048576);
+    source_shm_obj.truncate(1048576);
     ngrams_region_tsp.reset(new mapped_region(ngrams_shm_obj, read_write));
     scores_region_tsp.reset(new mapped_region(scores_shm_obj, read_write));
+    source_region_tsp.reset(new mapped_region(source_shm_obj, read_write));
     memset(ngrams_region_tsp->get_address(), 1, ngrams_region_tsp->get_size());
     memset(scores_region_tsp->get_address(), 1, scores_region_tsp->get_size());
+    memset(source_region_tsp->get_address(), 1, source_region_tsp->get_size());
 
     // Create the Python NumPy wrappers and store iterators over them
     // We need the GIL for this!
@@ -132,6 +137,17 @@ namespace Moses {
                                        NPY_NO_CASTING, NULL);
     Py_DECREF(scores_array);
     scores.reset(scores_iter);
+
+    int source_nd = 1;
+    npy_intp source_dims[1] = {250};
+    PyObject* source_array = PyArray_SimpleNewFromData(source_nd, source_dims,
+                                                       NPY_INT,
+                                                       source_region_tsp->get_address());
+    NpyIter *source_iter = NpyIter_New((PyArrayObject*)source_array,
+                                       NPY_ITER_READWRITE, NPY_KEEPORDER,
+                                       NPY_NO_CASTING, NULL);
+    Py_DECREF(source_array);
+    source.reset(source_iter);
 
     PyGILState_Release(gstate);
 
@@ -221,13 +237,55 @@ namespace Moses {
     }
   }
 
+  void CSLM::Evaluate(const InputType &input,
+                      const InputPath &inputPath,
+                      const TargetPhrase &targetPhrase,
+                      const StackVec *stackVec,
+                      ScoreComponentCollection &scoreBreakdown,
+                      ScoreComponentCollection *estimatedFutureScore) const {
+    // This gets called for each target phrase before the search begins
+    // We see if the source sentence has already been set
+    // If not, we binarize it and store it in a NumPy array
+    bool reset = false;
+    if (!source_sentence.get()) {
+      reset = true;
+    } else if (source_sentence->GetTranslationId() != input.GetTranslationId()) {
+      reset = true;
+    }
+    if (reset) {
+      NpyIter* iter = source.get();
+      NpyIter_IterNextFunc *iternext = NpyIter_GetIterNext(iter, (char**)"Unable to get source InterNextFunc");
+      if (!iternext) {
+        UTIL_THROW(util::Exception, "Unable to get source InterNextFunc" <<
+                                    "WARNING! No cleanup was performed");
+      }
+      float **dataptr = (float**) NpyIter_GetDataPtrArray(iter);
+      source_sentence.reset(const_cast<InputType*>(&input));
+      for (unsigned int i = 0; i < input.GetSize(); i++) {
+        if(input.GetWord(i).GetFactor(1)) {
+          try {
+            int cslm_id = boost::lexical_cast<int>(
+              input.GetWord(i).GetString(1).as_string()
+            );
+            **dataptr = cslm_id;
+          } catch (const boost::bad_lexical_cast& e) {
+            **dataptr = 1;
+          }
+        } else {
+          **dataptr = 1;
+        }
+        iternext(iter);
+      }
+    }
+  }
 
-void CSLM::Evaluate(const Phrase &source,
-                    const TargetPhrase &targetPhrase,
-                    ScoreComponentCollection &scoreBreakdown,
-                    ScoreComponentCollection &estimatedFutureScore) const
-{
-}
+  void CSLM::Evaluate(const Phrase &source,
+                      const TargetPhrase &targetPhrase,
+                      ScoreComponentCollection &scoreBreakdown,
+                      ScoreComponentCollection &estimatedFutureScore) const {
+    // This gets called by the phrase table; However, we can't score
+    // n-grams of variable length in isolation, so we don't do anything
+  }
 
   void CSLM::IssueRequestsFor(Hypothesis& hypo, const FFState* input_state) {
     // This is called for each hypothesis; we construct all the possible
