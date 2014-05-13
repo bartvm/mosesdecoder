@@ -56,6 +56,10 @@ public:
   void LoadThread();
   void StopThread();
   void Cleanup();
+  void Evaluate(const Phrase &source,
+                const TargetPhrase &targetPhrase,
+                ScoreComponentCollection &scoreBreakdown,
+                ScoreComponentCollection &estimatedFutureScore) const;
 
   void IssuePythonRequest(vector<const Word*>);
   void IssueRequestsFor(Hypothesis& hypo, const FFState* input_state);

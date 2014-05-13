@@ -221,6 +221,14 @@ namespace Moses {
     }
   }
 
+
+void CSLM::Evaluate(const Phrase &source,
+                    const TargetPhrase &targetPhrase,
+                    ScoreComponentCollection &scoreBreakdown,
+                    ScoreComponentCollection &estimatedFutureScore) const
+{
+}
+
   void CSLM::IssueRequestsFor(Hypothesis& hypo, const FFState* input_state) {
     // This is called for each hypothesis; we construct all the possible
     // n-grams for this phrase and issue a scoring request to Python
