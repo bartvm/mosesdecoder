@@ -45,3 +45,5 @@ for line in files[2]:
                             for word_index in word_indices]
         files[field_index].write(' '.join([str(word_index) for word_index
                                            in word_indices]) + '\n')
+for f in enumerate(files):
+    f.close()

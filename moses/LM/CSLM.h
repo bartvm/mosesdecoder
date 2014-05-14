@@ -39,6 +39,7 @@ namespace Moses {
       boost::thread_specific_ptr<int> batch_count;
       boost::thread_specific_ptr<int> child_pid;
       // Mutable so that it can be set from Evaluate, which is const
+      mutable boost::thread_specific_ptr<int> source_length;
       mutable boost::thread_specific_ptr<InputType> source_sentence;
 
       // These empty destructors are necessary to avoid double frees

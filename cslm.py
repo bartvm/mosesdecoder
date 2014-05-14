@@ -7,6 +7,8 @@ import theano
 
 logging.basicConfig(level=logging.DEBUG)
 
+import sys
+sys.stdout = open('cslm.log', 'w')
 
 def handler(signum, frame):
     """
@@ -82,7 +84,7 @@ def filter(ngrams):
     return final_inputs, target_samples, target_words, reverse_sorted_indices
 
 
-def get(ngrams, scores, batch_size):
+def get(ngrams, scores, batch_size, source):
     """
     Scores a given number of ngrams and writes the scores
     to a given vector.
@@ -98,11 +100,14 @@ def get(ngrams, scores, batch_size):
         be scored, and the scores will be written
         to the first batch_size elements of the scores
         vector.
+    source : 1d ndarray
+        The indices of the source sentence; read up to -1
 
     Returns
     -------
     True if successful
     """
+    print source
     (final_inputs, target_samples,
         target_words, reverse_sorted_indices) = filter(ngrams[:batch_size])
     results = f(final_inputs, target_samples, target_words)

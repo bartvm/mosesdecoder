@@ -111,6 +111,7 @@ int main(int argc, char* argv[]) {
   if (argc > 2) {
     // The extra argument means that this is a conditional model
     conditional = true;
+    VERBOSE(1, "Running in conditional mode" << endl);
   }
   string thread_id  = argv[1];
   string ngrams_id  = thread_id + "ngrams";
@@ -128,15 +129,6 @@ int main(int argc, char* argv[]) {
   int status = 0;
   mqs.send(&status);
 
-  // Start Python
-  VERBOSE(1, "Starting Python for thread " << thread_id << endl);
-  PyObject* pGet = LoadPython();
-  if (!pGet) {
-    VERBOSE(1, "Terminating." << endl);
-    Py_Finalize();
-    return 1;
-  }
-
   // Access the shared memory segment
   shared_memory_object ngrams_shm_obj(open_only, ngrams_id.c_str(), read_write);
   shared_memory_object scores_shm_obj(open_only, scores_id.c_str(), read_write);
@@ -148,17 +140,36 @@ int main(int argc, char* argv[]) {
   }
   mapped_region ngrams_region(ngrams_shm_obj, read_write);
   mapped_region scores_region(scores_shm_obj, read_write);
-  mapped_region source_region;
+  mapped_region* source_region;
   if (conditional) {
-    mapped_region source_region_swap(*source_shm_obj, read_write);
-    source_region.swap(source_region_swap);
+    source_region = new mapped_region(*source_shm_obj, read_write);
   }
 
-  char *mem = static_cast<char*>(ngrams_region.get_address());
   bool success(true);
+  char *mem;
+  if (conditional) {
+    mem = static_cast<char*>(source_region->get_address());
+    for(size_t i = 0; i < source_region->get_size(); ++i) {
+      if(*mem++ != 1) {
+        success = false;
+        VERBOSE(1, "Source memory corrupt" << endl);
+        break;
+      }
+    }
+  }
+  mem = static_cast<char*>(ngrams_region.get_address());
   for(size_t i = 0; i < ngrams_region.get_size(); ++i) {
     if(*mem++ != 1) {
       success = false;
+      VERBOSE(1, "N-gram memory corrupt" << endl);
+      break;
+    }
+  }
+  mem = static_cast<char*>(scores_region.get_address());
+  for(size_t i = 0; i < scores_region.get_size(); ++i) {
+    if(*mem++ != 1) {
+      success = false;
+      VERBOSE(1, "Scores memory corrupt" << endl);
       break;
     }
   }
@@ -167,10 +178,18 @@ int main(int argc, char* argv[]) {
   } else {
     VERBOSE(1, "Shared memory segment data seems corrupted. Terminating."
                << endl);
-    Py_DECREF(pGet);
+    return 1;
+  }
+
+  // Start Python
+  VERBOSE(1, "Starting Python for thread " << thread_id << endl);
+  PyObject* pGet = LoadPython();
+  if (!pGet) {
+    VERBOSE(1, "Terminating." << endl);
     Py_Finalize();
     return 1;
   }
+
 
   int ngrams_nd = 2;
   npy_intp ngrams_dims[2] = {25000, 7};
@@ -187,9 +206,9 @@ int main(int argc, char* argv[]) {
   if (conditional) {
     int source_nd = 1;
     npy_intp source_dims[1] = {250};
-    PyObject* source_array = PyArray_SimpleNewFromData(source_nd, source_dims,
-                                                       NPY_INT,
-                                                       source_region.get_address());
+    source_array = PyArray_SimpleNewFromData(source_nd, source_dims,
+                                             NPY_INT,
+                                             source_region->get_address());
     if (!source_array) {
       VERBOSE(1, "PyMoses was unable to load NumPy arrays from shared memory. "
                  "Terminating." << endl);
@@ -223,25 +242,36 @@ int main(int argc, char* argv[]) {
   // Listen for messages
   while (true) {
     int batch_size = 0;
+    int source_length;
     mqs.receive(&batch_size);
     if (batch_size > 0) {
       PyObject* py_batch_size = PyInt_FromSize_t(batch_size);
       PyTuple_SetItem(pArgs, 2, py_batch_size);
+      if (conditional) {
+        // Get a subset of the array with the length of the source
+        // sentence to send to Python
+        mqs.receive(&source_length);
+        PyObject* slice = PySlice_New(NULL,
+                                      PyInt_FromSsize_t(source_length),
+                                      NULL);
+        PyObject* subarray = PyObject_GetItem(source_array, slice);
+        PyTuple_SetItem(pArgs, 3, subarray);
+        Py_DECREF(slice);
+      }
       PyObject* result = PyObject_CallObject(pGet, pArgs);
-      int message;
       if (result == Py_True) {
-        message = 1;
+        int message = 1;
         mqs.send(&message);
         Py_DECREF(result);
       } else {
+        if (PyErr_Occurred()) {
+          PyErr_Print();
+        }
         VERBOSE(1, "PyMoses received strange value from Python (expected True)"
                    "or call failed. Terminating." << endl);
-        Py_DECREF(result);
+
         break;
       }
-    } else if (batch_size == 0) {
-      // This means we received a source sentence
-      //
     } else if (batch_size == -1) {
       // Message -1 means that Moses is quitting (CSLM object destructor)
       // Let Moses know we got the message so that it can destroy the MQs

@@ -8,7 +8,7 @@ using namespace boost::posix_time;
 namespace Moses {
   CSLM::CSLM(const std::string &line)
     : LanguageModelSingleFactor(line),
-      ngrams(&NpyIterCleanup), scores(&NpyIterCleanup),
+      ngrams(&NpyIterCleanup), scores(&NpyIterCleanup),source(&NpyIterCleanup),
       source_sentence(&InputTypeCleanup),
       conditional(false), backoff(false) {
     ReadParameters();
@@ -75,6 +75,7 @@ namespace Moses {
   void CSLM::SetParameter(const std::string& key, const std::string& value) {
     if (key == "conditional") {
       conditional = true;
+      VERBOSE(1, "CSLM is running in conditional mode" << endl);
     } else if (key == "backoff") {
       backoff = true;
     } else {
@@ -94,6 +95,11 @@ namespace Moses {
     shared_memory_object::remove(
       ThisThreadId("scores").c_str()
     );
+    if (conditional) {
+      shared_memory_object::remove(
+        ThisThreadId("source").c_str()
+      );
+    }
   }
 
   void CSLM::LoadThread() {
@@ -280,41 +286,46 @@ namespace Moses {
     // This gets called for each target phrase before the search begins
     // We see if the source sentence has already been set
     // If not, we binarize it and store it in a NumPy array
-    bool reset = false;
-    if (!source_sentence.get()) {
-      reset = true;
-    } else if (source_sentence->GetTranslationId() != input.GetTranslationId()) {
-      reset = true;
-    }
-    if (reset) {
-      source_sentence.reset(const_cast<InputType*>(&input));
+    if (conditional) {
+      bool reset = false;
+      if (!source_sentence.get()) {
+        reset = true;
+      } else if (source_sentence->GetTranslationId() != input.GetTranslationId()) {
+        reset = true;
+      }
+      if (reset) {
+        source_length.reset(new int(input.GetSize()));
+        source_sentence.reset(const_cast<InputType*>(&input));
 
-      NpyIter* iter = source.get();
-      NpyIter_IterNextFunc *iternext = NpyIter_GetIterNext(iter, (char**)"Unable to get source InterNextFunc");
-      if (!iternext) {
-        UTIL_THROW(util::Exception, "Unable to get source InterNextFunc" <<
-                                    "WARNING! No cleanup was performed");
-      }
-      int result_source = NpyIter_Reset(iter, (char**)"Unable to reset source");
-      if (result_source == NPY_FAIL) {
-        Cleanup();
-        UTIL_THROW(util::Exception, "Unable to reset source");
-      }
-      int **dataptr = (int**) NpyIter_GetDataPtrArray(iter);
-      for (unsigned int i = 0; i < input.GetSize(); i++) {
-        if(input.GetWord(i).GetFactor(1)) {
-          try {
-            int cslm_id = boost::lexical_cast<int>(
-              input.GetWord(i).GetString(1).as_string()
-            );
-            **dataptr = cslm_id;
-          } catch (const boost::bad_lexical_cast& e) {
+        NpyIter* iter = source.get();
+        NpyIter_IterNextFunc *iternext = NpyIter_GetIterNext(
+          iter, (char**)"Unable to get source InterNextFunc"
+        );
+        if (!iternext) {
+          const_cast<CSLM*>(this)->Cleanup();
+          UTIL_THROW(util::Exception, "Unable to get source InterNextFunc");
+        }
+        int result_source = NpyIter_Reset(iter, (char**)"Unable to reset source");
+        if (result_source == NPY_FAIL) {
+          const_cast<CSLM*>(this)->Cleanup();
+          UTIL_THROW(util::Exception, "Unable to reset source");
+        }
+        int **dataptr = (int**) NpyIter_GetDataPtrArray(iter);
+        for (unsigned int i = 0; i < input.GetSize(); i++) {
+          if(input.GetWord(i).GetFactor(1)) {
+            try {
+              int cslm_id = boost::lexical_cast<int>(
+                input.GetWord(i).GetString(1).as_string()
+              );
+              **dataptr = cslm_id;
+            } catch (const boost::bad_lexical_cast& e) {
+              **dataptr = 1;
+            }
+          } else {
             **dataptr = 1;
           }
-        } else {
-          **dataptr = 1;
+          iternext(iter);
         }
-        iternext(iter);
       }
     }
   }
@@ -391,8 +402,8 @@ namespace Moses {
     NpyIter* iter = scores.get();
     NpyIter_IterNextFunc *iternext = NpyIter_GetIterNext(iter, (char**)"Unable to get scores InterNextFunc");
     if (!iternext) {
-      UTIL_THROW(util::Exception, "Unable to get scores InterNextFunc" <<
-                                  "WARNING! No cleanup was performed");
+      const_cast<CSLM*>(this)->Cleanup();
+      UTIL_THROW(util::Exception, "Unable to get scores InterNextFunc");
     }
     float **dataptr = (float**) NpyIter_GetDataPtrArray(iter);
 
@@ -423,6 +434,10 @@ namespace Moses {
     if (*batch_count.get() > 0) {
       int message = *batch_count.get();
       m2py_tsp->send(&message, sizeof(int), 0);
+      if (conditional) {
+        message = *source_length.get();
+        m2py_tsp->send(&message, sizeof(int), 0);
+      }
     }
   }
 
