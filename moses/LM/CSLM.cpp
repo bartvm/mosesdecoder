@@ -152,7 +152,7 @@ namespace Moses {
     PyGILState_STATE gstate;
     gstate = PyGILState_Ensure();
     int ngrams_nd = 2;
-    npy_intp ngrams_dims[2] = {25000, 7};
+    npy_intp ngrams_dims[2] = {25000, m_nGramOrder};
     PyObject* ngrams_array = PyArray_SimpleNewFromData(ngrams_nd, ngrams_dims,
                                                        NPY_INT,
                                                        ngrams_region_tsp->get_address());
