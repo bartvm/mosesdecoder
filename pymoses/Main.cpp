@@ -37,6 +37,7 @@ void init_numpy() {
   import_array();
 }
 
+
 PyObject* LoadPython() {
   // Load Python
   Py_Initialize();
@@ -106,9 +107,18 @@ class mq_handle {
 int main(int argc, char* argv[]) {
   // These are the names to access the message queues and shared memory
   VERBOSE(1, "Starting PyMoses" << endl);
+  bool conditional(false);
+  if (argc > 2) {
+    // The extra argument means that this is a conditional model
+    conditional = true;
+  }
   string thread_id  = argv[1];
   string ngrams_id  = thread_id + "ngrams";
   string scores_id  = thread_id + "scores";
+  string source_id;
+  if (conditional) {
+    source_id  = thread_id + "source";
+  }
 
   // Open the message queues
   mq_handle mqs(thread_id);
@@ -130,8 +140,19 @@ int main(int argc, char* argv[]) {
   // Access the shared memory segment
   shared_memory_object ngrams_shm_obj(open_only, ngrams_id.c_str(), read_write);
   shared_memory_object scores_shm_obj(open_only, scores_id.c_str(), read_write);
+  shared_memory_object* source_shm_obj;
+  if (conditional) {
+    source_shm_obj = new shared_memory_object(open_only,
+                                              source_id.c_str(),
+                                              read_write);
+  }
   mapped_region ngrams_region(ngrams_shm_obj, read_write);
   mapped_region scores_region(scores_shm_obj, read_write);
+  mapped_region source_region;
+  if (conditional) {
+    mapped_region source_region_swap(*source_shm_obj, read_write);
+    source_region.swap(source_region_swap);
+  }
 
   char *mem = static_cast<char*>(ngrams_region.get_address());
   bool success(true);
@@ -161,6 +182,23 @@ int main(int argc, char* argv[]) {
   PyObject* scores_array = PyArray_SimpleNewFromData(scores_nd, scores_dims,
                                                      NPY_FLOAT,
                                                      scores_region.get_address());
+
+  PyObject* source_array;
+  if (conditional) {
+    int source_nd = 1;
+    npy_intp source_dims[1] = {250};
+    PyObject* source_array = PyArray_SimpleNewFromData(source_nd, source_dims,
+                                                       NPY_INT,
+                                                       source_region.get_address());
+    if (!source_array) {
+      VERBOSE(1, "PyMoses was unable to load NumPy arrays from shared memory. "
+                 "Terminating." << endl);
+      Py_DECREF(pGet);
+      Py_Finalize();
+      return 1;
+    }
+  }
+
   if (!ngrams_array || !scores_array) {
     VERBOSE(1, "PyMoses was unable to load NumPy arrays from shared memory. "
                "Terminating." << endl);
@@ -168,7 +206,13 @@ int main(int argc, char* argv[]) {
     Py_Finalize();
     return 1;
   }
-  PyObject *pArgs = PyTuple_New(3);
+  PyObject *pArgs;
+  if (conditional) {
+    pArgs = PyTuple_New(4);
+    PyTuple_SetItem(pArgs, 3, source_array);
+  } else {
+    pArgs = PyTuple_New(3);
+  }
   PyTuple_SetItem(pArgs, 0, ngrams_array);
   PyTuple_SetItem(pArgs, 1, scores_array);
 
@@ -195,6 +239,9 @@ int main(int argc, char* argv[]) {
         Py_DECREF(result);
         break;
       }
+    } else if (batch_size == 0) {
+      // This means we received a source sentence
+      //
     } else if (batch_size == -1) {
       // Message -1 means that Moses is quitting (CSLM object destructor)
       // Let Moses know we got the message so that it can destroy the MQs

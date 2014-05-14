@@ -52,12 +52,16 @@ namespace Moses {
       void Cleanup();
       void IssuePythonRequest(vector<const Word*>);
 
+      bool conditional;
+      bool backoff;
+
     public:
       CSLM(const string &line);
       ~CSLM();
       void Load();
       void LoadThread();
       void StopThread();
+      void SetParameter(const std::string& key, const std::string& value);
 
       void SendBuffer();
       void SyncBuffer();

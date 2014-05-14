@@ -9,7 +9,8 @@ namespace Moses {
   CSLM::CSLM(const std::string &line)
     : LanguageModelSingleFactor(line),
       ngrams(&NpyIterCleanup), scores(&NpyIterCleanup),
-      source_sentence(&InputTypeCleanup) {
+      source_sentence(&InputTypeCleanup),
+      conditional(false), backoff(false) {
     ReadParameters();
 
     FactorCollection &factorCollection = FactorCollection::Instance();
@@ -71,6 +72,16 @@ namespace Moses {
     Cleanup();
   }
 
+  void CSLM::SetParameter(const std::string& key, const std::string& value) {
+    if (key == "conditional") {
+      conditional = true;
+    } else if (key == "backoff") {
+      backoff = true;
+    } else {
+      LanguageModelSingleFactor::SetParameter(key, value);
+    }
+  }
+
   void CSLM::Cleanup() {
     // Remove message queues
     message_queue::remove(ThisThreadId("m2py").c_str());
@@ -98,19 +109,37 @@ namespace Moses {
     // Easier doing it this way than in a separate function
     // because some things seem to disappear in the stack
     VERBOSE(1, "Setting up shared memory" << endl);
-    shared_memory_object ngrams_shm_obj(open_or_create, ThisThreadId("ngrams").c_str(), read_write);
-    shared_memory_object scores_shm_obj(open_or_create, ThisThreadId("scores").c_str(), read_write);
-    shared_memory_object source_shm_obj(open_or_create, ThisThreadId("source").c_str(), read_write);
+    shared_memory_object ngrams_shm_obj(open_or_create,
+                                        ThisThreadId("ngrams").c_str(),
+                                        read_write);
+    shared_memory_object scores_shm_obj(open_or_create,
+                                        ThisThreadId("scores").c_str(),
+                                        read_write);
+    shared_memory_object* source_shm_obj;
+    if (conditional) {
+      source_shm_obj = new shared_memory_object(open_or_create,
+                                                ThisThreadId("source").c_str(),
+                                                read_write);
+    }
+    // Dereferencing a NULL pointer is undefined behaviour, so we'll
+    // do with the pointer to the shared memory object here
+
     // TODO: These numbers should be calculated more precisely (now 1MB for each)
     ngrams_shm_obj.truncate(2097152);
     scores_shm_obj.truncate(1048576);
-    source_shm_obj.truncate(1048576);
+    if (conditional) {
+      source_shm_obj->truncate(1048576);
+    }
     ngrams_region_tsp.reset(new mapped_region(ngrams_shm_obj, read_write));
     scores_region_tsp.reset(new mapped_region(scores_shm_obj, read_write));
-    source_region_tsp.reset(new mapped_region(source_shm_obj, read_write));
+    if (conditional) {
+      source_region_tsp.reset(new mapped_region(*source_shm_obj, read_write));
+    }
     memset(ngrams_region_tsp->get_address(), 1, ngrams_region_tsp->get_size());
     memset(scores_region_tsp->get_address(), 1, scores_region_tsp->get_size());
-    memset(source_region_tsp->get_address(), 1, source_region_tsp->get_size());
+    if (conditional) {
+      memset(source_region_tsp->get_address(), 1, source_region_tsp->get_size());
+    }
 
     // Create the Python NumPy wrappers and store iterators over them
     // We need the GIL for this!
@@ -138,16 +167,18 @@ namespace Moses {
     Py_DECREF(scores_array);
     scores.reset(scores_iter);
 
-    int source_nd = 1;
-    npy_intp source_dims[1] = {250};
-    PyObject* source_array = PyArray_SimpleNewFromData(source_nd, source_dims,
-                                                       NPY_INT,
-                                                       source_region_tsp->get_address());
-    NpyIter *source_iter = NpyIter_New((PyArrayObject*)source_array,
-                                       NPY_ITER_READWRITE, NPY_KEEPORDER,
-                                       NPY_NO_CASTING, NULL);
-    Py_DECREF(source_array);
-    source.reset(source_iter);
+    if (conditional) {
+      int source_nd = 1;
+      npy_intp source_dims[1] = {250};
+      PyObject* source_array = PyArray_SimpleNewFromData(source_nd, source_dims,
+                                                         NPY_INT,
+                                                         source_region_tsp->get_address());
+      NpyIter *source_iter = NpyIter_New((PyArrayObject*)source_array,
+                                         NPY_ITER_READWRITE, NPY_KEEPORDER,
+                                         NPY_NO_CASTING, NULL);
+      Py_DECREF(source_array);
+      source.reset(source_iter);
+    }
 
     PyGILState_Release(gstate);
 
@@ -157,6 +188,9 @@ namespace Moses {
     // to the parent
     FILE *fpipe;
     std::string command = "pymoses " + ThisThreadId("");
+    if (conditional) {
+      command = command + " conditional";
+    }
     char line[256];
 
     // Fork the current process, message PyMoses in the child process,
@@ -253,14 +287,20 @@ namespace Moses {
       reset = true;
     }
     if (reset) {
+      source_sentence.reset(const_cast<InputType*>(&input));
+
       NpyIter* iter = source.get();
       NpyIter_IterNextFunc *iternext = NpyIter_GetIterNext(iter, (char**)"Unable to get source InterNextFunc");
       if (!iternext) {
         UTIL_THROW(util::Exception, "Unable to get source InterNextFunc" <<
                                     "WARNING! No cleanup was performed");
       }
-      float **dataptr = (float**) NpyIter_GetDataPtrArray(iter);
-      source_sentence.reset(const_cast<InputType*>(&input));
+      int result_source = NpyIter_Reset(iter, (char**)"Unable to reset source");
+      if (result_source == NPY_FAIL) {
+        Cleanup();
+        UTIL_THROW(util::Exception, "Unable to reset source");
+      }
+      int **dataptr = (int**) NpyIter_GetDataPtrArray(iter);
       for (unsigned int i = 0; i < input.GetSize(); i++) {
         if(input.GetWord(i).GetFactor(1)) {
           try {
