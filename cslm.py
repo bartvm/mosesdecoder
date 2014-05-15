@@ -4,11 +4,11 @@ import signal
 
 import numpy
 import theano
+from theano import function
+from theano import tensor
 
 logging.basicConfig(level=logging.DEBUG)
 
-import sys
-sys.stdout = open('cslm.log', 'w')
 
 def handler(signum, frame):
     """
@@ -22,21 +22,42 @@ signal.signal(signal.SIGINT, handler)
 
 logging.debug("Loading model...")
 
-with open('/u/vanmerb/pylearn2/holger_best.pkl') as f:
+with open('/u/vanmerb/pylearn2/holger_bow_best.pkl') as f:
     model = cPickle.load(f)
 
 logging.debug("Compiling Theano function...")
 
-input = theano.tensor.imatrix()
-windows = theano.tensor.ivector()
-targets = theano.tensor.ivector()
-results = model.fprop(input)
-f = theano.function(
-    [input, windows, targets],
-    theano.tensor.log10(
-        results.flatten()[windows * results.shape[1] + targets]
-    )  # , mode=profmode
-)
+input = tensor.imatrix()
+windows = tensor.ivector()
+targets = tensor.ivector()
+if True:
+    source = theano.tensor.ivector()
+    source_embeddings = model.layers[0].raw_layer.layers[1].get_params()[0]
+    assert source_embeddings.name == 'source_projection_W'
+    source_projection = tensor.cast(tensor.sum(source_embeddings[source],
+                                               axis=0) / source.shape[0],
+                                    'float32')
+    stacked_source = tensor.extra_ops.repeat(
+        source_projection.dimshuffle('x', 0), input.shape[0], axis=0
+    )
+    ngram_projection = model.layers[0].raw_layer.layers[0].fprop(input)
+    state = tensor.concatenate([ngram_projection, stacked_source], axis=1)
+    for layer in model.layers[1:]:
+        state = layer.fprop(state)
+    results = state.flatten()[windows * state.shape[1] + targets]
+    assert results.dtype == 'float32'
+    f = function(
+        [input, windows, targets, source],
+        tensor.log(results)
+    )
+else:
+    results = model.fprop(input)
+    f = function(
+        [input, windows, targets],
+        tensor.log(
+            results.flatten()[windows * results.shape[1] + targets]
+        )
+    )
 
 logging.debug("Python module loaded!")
 
@@ -84,7 +105,7 @@ def filter(ngrams):
     return final_inputs, target_samples, target_words, reverse_sorted_indices
 
 
-def get(ngrams, scores, batch_size, source):
+def get(ngrams, scores, batch_size, source=None):
     """
     Scores a given number of ngrams and writes the scores
     to a given vector.
@@ -107,9 +128,11 @@ def get(ngrams, scores, batch_size, source):
     -------
     True if successful
     """
-    print source
     (final_inputs, target_samples,
         target_words, reverse_sorted_indices) = filter(ngrams[:batch_size])
-    results = f(final_inputs, target_samples, target_words)
+    if source is not None:
+        results = f(final_inputs, target_samples, target_words, source)
+    else:
+        results = f(final_inputs, target_samples, target_words)
     scores[:batch_size] = results[reverse_sorted_indices]
     return True
