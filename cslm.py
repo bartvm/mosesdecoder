@@ -3,7 +3,6 @@ import logging
 import signal
 
 import numpy
-import theano
 from theano import function
 from theano import tensor
 
@@ -31,18 +30,18 @@ input = tensor.imatrix()
 windows = tensor.ivector()
 targets = tensor.ivector()
 if True:
-    source = theano.tensor.ivector()
+    source = tensor.ivector()
     source_embeddings = model.layers[0].raw_layer.layers[1].get_params()[0]
+    W, b = model.layers[1].get_params()
     assert source_embeddings.name == 'source_projection_W'
-    source_projection = tensor.cast(tensor.sum(source_embeddings[source],
-                                               axis=0) / source.shape[0],
-                                    'float32')
-    stacked_source = tensor.extra_ops.repeat(
-        source_projection.dimshuffle('x', 0), input.shape[0], axis=0
-    )
+    source_projection = (tensor.sum(source_embeddings[source], axis=0) /
+                         tensor.cast(source.shape[0], 'int16'))
     ngram_projection = model.layers[0].raw_layer.layers[0].fprop(input)
-    state = tensor.concatenate([ngram_projection, stacked_source], axis=1)
-    for layer in model.layers[1:]:
+    source_h0 = tensor.dot(source_projection, W[ngram_projection.shape[1]:])
+    ngram_h0 = tensor.dot(ngram_projection, W[:ngram_projection.shape[1]])
+    state = ngram_h0 + source_h0[None, :] + b
+    state = tensor.switch(state > 0, state, 0)
+    for layer in model.layers[2:]:
         state = layer.fprop(state)
     results = state.flatten()[windows * state.shape[1] + targets]
     assert results.dtype == 'float32'
@@ -122,7 +121,7 @@ def get(ngrams, scores, batch_size, source=None):
         to the first batch_size elements of the scores
         vector.
     source : 1d ndarray
-        The indices of the source sentence; read up to -1
+        The indices of the source sentence
 
     Returns
     -------
