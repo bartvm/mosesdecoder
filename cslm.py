@@ -130,6 +130,8 @@ def get(ngrams, scores, batch_size, source=None):
     (final_inputs, target_samples,
         target_words, reverse_sorted_indices) = filter(ngrams[:batch_size])
     if source is not None:
+        logging.debug(source)
+        logging.debug(ngrams[0])
         results = f(final_inputs, target_samples, target_words, source)
     else:
         results = f(final_inputs, target_samples, target_words)

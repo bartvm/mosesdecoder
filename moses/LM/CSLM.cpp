@@ -262,15 +262,9 @@ namespace Moses {
     int **dataptr = (int**) NpyIter_GetDataPtrArray(iter);
     for (unsigned int i = 0; i < contextFactor.size(); i++) {
       if(contextFactor[i]->GetFactor(1)) {
-        try {
-          int cslm_id = boost::lexical_cast<int>(
-            contextFactor[i]->GetString(1).as_string()
-          );
-          **dataptr = cslm_id;
-        } catch (const boost::bad_lexical_cast& e) {
-          **dataptr = 1;
-        }
+        **dataptr = contextFactor[i]->GetFactor(1)->GetIndex();
       } else {
+        // TODO: DO not hardcode UNK index
         **dataptr = 1;
       }
       iternext(iter);
@@ -313,14 +307,7 @@ namespace Moses {
         int **dataptr = (int**) NpyIter_GetDataPtrArray(iter);
         for (unsigned int i = 0; i < input.GetSize(); i++) {
           if(input.GetWord(i).GetFactor(1)) {
-            try {
-              int cslm_id = boost::lexical_cast<int>(
-                input.GetWord(i).GetString(1).as_string()
-              );
-              **dataptr = cslm_id;
-            } catch (const boost::bad_lexical_cast& e) {
-              **dataptr = 1;
-            }
+            **dataptr = input.GetWord(i).GetFactor(1)->GetIndex();
           } else {
             **dataptr = 1;
           }

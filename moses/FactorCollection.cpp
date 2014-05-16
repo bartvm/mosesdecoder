@@ -20,6 +20,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 ***********************************************************************/
 
 #include <boost/version.hpp>
+#include <boost/lexical_cast.hpp>
 #ifdef WITH_THREADS
 #include <boost/thread/locks.hpp>
 #endif
@@ -40,6 +41,14 @@ const Factor *FactorCollection::AddFactor(const StringPiece &factorString, bool 
   FactorFriend to_ins;
   to_ins.in.m_string = factorString;
   to_ins.in.m_id = (isNonTerminal) ? m_factorIdNonTerminal : m_factorId;
+  int index;
+  try {
+    index = boost::lexical_cast<int>(factorString.as_string());
+  } catch (const boost::bad_lexical_cast& e) {
+    // TODO: Do not hardcode UNK index
+    index = 1;
+  }
+  to_ins.in.m_index = index;
   Set & set = (isNonTerminal) ? m_set : m_setNonTerminal;
   // If we're threaded, hope a read-only lock is sufficient.
 #ifdef WITH_THREADS

@@ -49,12 +49,13 @@ class Factor
   // This is mutable so the pointer can be changed to pool-backed memory.
   mutable StringPiece m_string;
   size_t			m_id;
+  size_t m_index;
 
   //! protected constructor. only friend class, FactorCollection, is allowed to create Factor objects
   Factor() {}
 
   // Needed for STL containers.  They'll delegate through FactorFriend, which is never exposed publicly.
-  Factor(const Factor &factor) : m_string(factor.m_string), m_id(factor.m_id) {}
+  Factor(const Factor &factor) : m_string(factor.m_string), m_id(factor.m_id), m_index(factor.m_index) {}
 
   // Not implemented.  Shouldn't be called.
   Factor &operator=(const Factor &factor);
@@ -63,6 +64,9 @@ public:
   //! original string representation of the factor
   StringPiece GetString() const {
     return m_string;
+  }
+  inline size_t GetIndex() const {
+    return m_index;
   }
   //! contiguous ID
   inline size_t GetId() const {
