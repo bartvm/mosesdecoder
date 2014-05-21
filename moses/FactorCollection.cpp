@@ -41,6 +41,7 @@ const Factor *FactorCollection::AddFactor(const StringPiece &factorString, bool 
   FactorFriend to_ins;
   to_ins.in.m_string = factorString;
   to_ins.in.m_id = (isNonTerminal) ? m_factorIdNonTerminal : m_factorId;
+  // TODO: Only do casting for certain factors
   int index;
   try {
     index = boost::lexical_cast<int>(factorString.as_string());
