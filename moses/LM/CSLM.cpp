@@ -207,9 +207,9 @@ namespace Moses {
       int message = 1;
       message_queue::size_type recvd_size;
       unsigned int priority;
-      VERBOSE(1, "Waiting for ALIVE sign from process " << pid
+      VERBOSE(1, "Waiting for ALIVE sign for 30 s from process " << pid
                  << ", child of thread " << ThisThreadId("") << endl);
-      ptime timeout = second_clock::universal_time() + seconds(5);
+      ptime timeout = second_clock::universal_time() + seconds(30);
       if(!py2m_tsp->timed_receive(&message, sizeof(message), recvd_size,
                                   priority, timeout)) {
         Cleanup();
