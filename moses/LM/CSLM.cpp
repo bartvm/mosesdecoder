@@ -261,6 +261,7 @@ namespace Moses {
     }
     int **dataptr = (int**) NpyIter_GetDataPtrArray(iter);
     for (unsigned int i = 0; i < contextFactor.size(); i++) {
+      // TODO: Do not hardcode factor type
       if(contextFactor[i]->GetFactor(1)) {
         **dataptr = contextFactor[i]->GetFactor(1)->GetIndex();
       } else {

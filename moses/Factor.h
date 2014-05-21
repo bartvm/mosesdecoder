@@ -27,6 +27,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 #include "TypeDef.h"
 #include "Util.h"
 #include "util/string_piece.hh"
+#include <boost/lexical_cast.hpp>
 
 namespace Moses
 {
@@ -48,14 +49,14 @@ class Factor
   // FactorCollection writes here.
   // This is mutable so the pointer can be changed to pool-backed memory.
   mutable StringPiece m_string;
-  size_t			m_id;
-  size_t m_index;
+  size_t m_id;
+  mutable size_t m_index;
 
   //! protected constructor. only friend class, FactorCollection, is allowed to create Factor objects
   Factor() {}
 
   // Needed for STL containers.  They'll delegate through FactorFriend, which is never exposed publicly.
-  Factor(const Factor &factor) : m_string(factor.m_string), m_id(factor.m_id), m_index(factor.m_index) {}
+  Factor(const Factor &factor) : m_string(factor.m_string), m_id(factor.m_id), m_index(-1) {}
 
   // Not implemented.  Shouldn't be called.
   Factor &operator=(const Factor &factor);
@@ -66,11 +67,22 @@ public:
     return m_string;
   }
   inline size_t GetIndex() const {
+    if (m_index == -1) {
+      CastIndex();
+    }
     return m_index;
   }
   //! contiguous ID
   inline size_t GetId() const {
     return m_id;
+  }
+  void CastIndex() const {
+    try {
+      m_index = boost::lexical_cast<int>(m_string.as_string());
+    } catch (const boost::bad_lexical_cast& e) {
+      // TODO: Do not hardcode UNK index
+      m_index = 1;
+    }
   }
 
   /** transitive comparison between 2 factors.
