@@ -131,7 +131,7 @@ lib iconv ;
 requirements += <os>MACOSX:<library>iconv ;
 
 # Python
-using python : 2.7 : /opt/lisa/os/epd-7.1.2/bin/python ;
+using python : 2.7 : /usr/local/Cellar/python/2.7.6/bin/python ;
 
 project : requirements 
   <threading>multi:<define>WITH_THREADS
@@ -140,8 +140,8 @@ project : requirements
   <library>boost_filesystem
   <library>/python
   <linkflags>"-lpython2.7"
-  <include>/opt/lisa/os/epd-7.1.2/include/python2.7
-  <include>/u/vanmerb/.local/lib/python2.7/site-packages/numpy/core/include
+  <include>/usr/local/Cellar/python/2.7.6/Frameworks/Python.framework/Versions/2.7/lib/python2.7/site-packages/numpy/core/include
+  <include>/usr/local/Cellar/python/2.7.6/Frameworks/Python.framework/Versions/2.7/include/python2.7
   <define>_FILE_OFFSET_BITS=64 <define>_LARGE_FILES
   $(requirements)
   <include>.
