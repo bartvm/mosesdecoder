@@ -21,7 +21,7 @@ signal.signal(signal.SIGINT, handler)
 
 logging.debug("Loading model...")
 
-with open('/u/vanmerb/pylearn2/holger_bow_best.pkl') as f:
+with open('/u/vanmerb/joint_paper_hs/holger_best.pkl') as f:
     model = cPickle.load(f)
 
 logging.debug("Compiling Theano function...")
@@ -29,7 +29,7 @@ logging.debug("Compiling Theano function...")
 input = tensor.imatrix()
 windows = tensor.ivector()
 targets = tensor.ivector()
-if True:
+if False:
     source = tensor.ivector()
     source_embeddings = model.layers[0].raw_layer.layers[1].get_params()[0]
     W, b = model.layers[1].get_params()
