@@ -29,7 +29,7 @@ logging.debug("Compiling Theano function...")
 input = tensor.imatrix()
 windows = tensor.ivector()
 targets = tensor.ivector()
-if True:
+if False:
     source = tensor.ivector()
     source_embeddings = model.layers[0].raw_layer.layers[1].get_params()[0]
     W, b = model.layers[1].get_params()
