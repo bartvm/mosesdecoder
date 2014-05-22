@@ -21,7 +21,7 @@ signal.signal(signal.SIGINT, handler)
 
 logging.debug("Loading model...")
 
-with open('/u/vanmerb/pylearn2/holger_bow_best.pkl') as f:
+with open('/RQusagers/vanmerb/joint_paper_hs/holger_bow_best.pkl') as f:
     model = cPickle.load(f)
 
 logging.debug("Compiling Theano function...")

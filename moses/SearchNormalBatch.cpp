@@ -12,7 +12,7 @@ namespace Moses
 {
 SearchNormalBatch::SearchNormalBatch(Manager& manager, const InputType &source, const TranslationOptionCollection &transOptColl)
   :SearchNormal(manager, source, transOptColl)
-  ,m_batch_size(25000)
+  ,m_batch_size(15000)
 {
   cur_batch_size.reset(new int(0));
   m_max_stack_size = StaticData::Instance().GetMaxHypoStackSize();

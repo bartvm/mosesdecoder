@@ -152,7 +152,7 @@ namespace Moses {
     PyGILState_STATE gstate;
     gstate = PyGILState_Ensure();
     int ngrams_nd = 2;
-    npy_intp ngrams_dims[2] = {25000, m_nGramOrder};
+    npy_intp ngrams_dims[2] = {15000, m_nGramOrder};
     PyObject* ngrams_array = PyArray_SimpleNewFromData(ngrams_nd, ngrams_dims,
                                                        NPY_INT,
                                                        ngrams_region_tsp->get_address());
@@ -163,7 +163,7 @@ namespace Moses {
     ngrams.reset(ngrams_iter);
 
     int scores_nd = 1;
-    npy_intp scores_dims[1] = {25000};
+    npy_intp scores_dims[1] = {15000};
     PyObject* scores_array = PyArray_SimpleNewFromData(scores_nd, scores_dims,
                                                        NPY_FLOAT,
                                                        scores_region_tsp->get_address());
