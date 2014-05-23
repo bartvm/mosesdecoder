@@ -66,9 +66,9 @@ public:
   StringPiece GetString() const {
     return m_string;
   }
-  inline size_t GetIndex() const {
+  inline size_t GetIndex(int unk) const {
     if (m_index == -1) {
-      CastIndex();
+      CastIndex(unk);
     }
     return m_index;
   }
@@ -76,12 +76,12 @@ public:
   inline size_t GetId() const {
     return m_id;
   }
-  void CastIndex() const {
+  void CastIndex(int unk) const {
     try {
       m_index = boost::lexical_cast<int>(m_string.as_string());
     } catch (const boost::bad_lexical_cast& e) {
       // TODO: Do not hardcode UNK index
-      m_index = 1;
+      m_index = unk;
     }
   }
 

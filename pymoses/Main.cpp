@@ -1,4 +1,4 @@
-# include <iostream>
+#include <iostream>
 #include <boost/scoped_ptr.hpp>
 #include <boost/interprocess/shared_memory_object.hpp>
 #include <boost/interprocess/mapped_region.hpp>
@@ -108,7 +108,7 @@ int main(int argc, char* argv[]) {
   // These are the names to access the message queues and shared memory
   VERBOSE(1, "Starting PyMoses" << endl);
   bool conditional(false);
-  if (argc > 2) {
+  if (argc > 5) {
     // The extra argument means that this is a conditional model
     conditional = true;
     VERBOSE(1, "Running in conditional mode" << endl);
@@ -120,6 +120,10 @@ int main(int argc, char* argv[]) {
   if (conditional) {
     source_id  = thread_id + "source";
   }
+  int batch_size = atoi(argv[2]);
+  int ngram = atoi(argv[3]);
+  string gpu = (string) "THEANO_FLAGS=device=" + (string) argv[4];
+  int result = putenv(const_cast<char*>(gpu.c_str()));
 
   // Open the message queues
   mq_handle mqs(thread_id);
@@ -192,12 +196,12 @@ int main(int argc, char* argv[]) {
 
 
   int ngrams_nd = 2;
-  npy_intp ngrams_dims[2] = {15000, 7};
+  npy_intp ngrams_dims[2] = {batch_size, 7};
   PyObject* ngrams_array = PyArray_SimpleNewFromData(ngrams_nd, ngrams_dims,
                                                      NPY_INT,
                                                      ngrams_region.get_address());
   int scores_nd = 1;
-  npy_intp scores_dims[1] = {15000};
+  npy_intp scores_dims[1] = {batch_size};
   PyObject* scores_array = PyArray_SimpleNewFromData(scores_nd, scores_dims,
                                                      NPY_FLOAT,
                                                      scores_region.get_address());

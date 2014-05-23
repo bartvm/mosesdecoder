@@ -46,7 +46,12 @@ namespace Moses {
       static void NpyIterCleanup(NpyIter *ptr) {}
       static void InputTypeCleanup(InputType *ptr) {}
 
-      const Factor *m_sentenceStart_CSLM, *m_sentenceEnd_CSLM;
+      FactorType m_sourceFactorType;
+      int m_UNK;
+      int m_EOS;
+      int m_BOS;
+      string m_path;
+      boost::mutex m_mutex;
       PyThreadState* state;
 
       string ThisThreadId(string suffix) const;
@@ -55,6 +60,7 @@ namespace Moses {
 
       bool conditional;
       bool backoff;
+      std::vector<string> m_gpuVec;
 
     public:
       CSLM(const string &line);
@@ -78,6 +84,8 @@ namespace Moses {
                     const StackVec *stackVec,
                     ScoreComponentCollection &scoreBreakdown,
                     ScoreComponentCollection *estimatedFutureScore = NULL) const;
+      FFState* Evaluate(const Hypothesis &hypo, const FFState *ps,
+                        ScoreComponentCollection *out) const;
       void IssueRequestsFor(Hypothesis& hypo, const FFState* input_state);
       virtual LMResult GetValue(const vector<const Word*> &contextFactor,
                                 State* finalState = 0) const;

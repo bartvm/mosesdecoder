@@ -277,6 +277,10 @@ bool StaticData::LoadData(Parameter *parameter)
     return false;
   }
 
+  // CSLM batch size
+  const vector<string> &CSLMBatchSize = m_parameter->GetParam("cslm-batch-size");
+  m_CSLMBatchSize = Scan<size_t>(CSLMBatchSize[0]);
+
   //output factors
   const vector<string> &outputFactorVector = m_parameter->GetParam("output-factors");
   for(size_t i=0; i<outputFactorVector.size(); i++) {

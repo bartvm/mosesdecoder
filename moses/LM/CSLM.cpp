@@ -1,5 +1,6 @@
 #include "CSLM.h"
 #include <sys/wait.h>
+#include "moses/Util.h"
 
 using namespace std;
 using namespace boost::interprocess;
@@ -10,21 +11,20 @@ namespace Moses {
     : LanguageModelSingleFactor(line),
       ngrams(&NpyIterCleanup), scores(&NpyIterCleanup),source(&NpyIterCleanup),
       source_sentence(&InputTypeCleanup),
-      conditional(false), backoff(false) {
+      conditional(false), backoff(false), m_UNK(-1), m_EOS(-1), m_BOS(-1) {
     ReadParameters();
+    if (m_UNK == -1 || m_EOS == -1 || m_BOS == -1) {
+      UTIL_THROW(util::Exception, "EOS, BOS and UNK IDs must be set in moses.ini");
+    }
 
     FactorCollection &factorCollection = FactorCollection::Instance();
 
     // needed by parent language model classes. Why didn't they set these themselves?
-    m_sentenceStart = factorCollection.AddFactor(Output, m_factorType, BOS_);
-    m_sentenceStart_CSLM = factorCollection.AddFactor(Output, 1, "0");
+    m_sentenceStart = factorCollection.AddFactor(Output, m_factorType, to_string(m_BOS));
     m_sentenceStartWord[m_factorType] = m_sentenceStart;
-    m_sentenceStartWord[1] = m_sentenceStart_CSLM;
 
-    m_sentenceEnd	= factorCollection.AddFactor(Output, m_factorType, EOS_);
-    m_sentenceEnd_CSLM = factorCollection.AddFactor(Output, 1, "0");
+    m_sentenceEnd	= factorCollection.AddFactor(Output, m_factorType, to_string(m_EOS));
     m_sentenceEndWord[m_factorType] = m_sentenceEnd;
-    m_sentenceEndWord[1] = m_sentenceEnd_CSLM;
   }
 
   CSLM::~CSLM() {
@@ -42,6 +42,7 @@ namespace Moses {
     VERBOSE(1, "Initialized NumPy" << endl);
     // Save the current thread state, release implicit GIL
     state = PyEval_SaveThread();
+
   }
 
   string CSLM::ThisThreadId(string suffix) const {
@@ -77,7 +78,18 @@ namespace Moses {
       conditional = true;
       VERBOSE(1, "CSLM is running in conditional mode" << endl);
     } else if (key == "backoff") {
+      UTIL_THROW(util::Exception, "Backoff mode is not implemented.");
       backoff = true;
+    } else if (key == "source-factor") {
+      m_sourceFactorType = Scan<FactorType>(value);
+    } else if (key == "UNK") {
+      m_UNK = Scan<int>(value);
+    } else if (key == "BOS") {
+      m_BOS = Scan<int>(value);
+    } else if (key == "EOS") {
+      m_EOS = Scan<int>(value);
+    } else if (key == "gpu") {
+      m_gpuVec = Tokenize<string>(value, ",");
     } else {
       LanguageModelSingleFactor::SetParameter(key, value);
     }
@@ -149,10 +161,11 @@ namespace Moses {
 
     // Create the Python NumPy wrappers and store iterators over them
     // We need the GIL for this!
+    const StaticData &staticData = StaticData::Instance();
     PyGILState_STATE gstate;
     gstate = PyGILState_Ensure();
     int ngrams_nd = 2;
-    npy_intp ngrams_dims[2] = {15000, m_nGramOrder};
+    npy_intp ngrams_dims[2] = {staticData.GetCSLMBatchSize(), m_nGramOrder};
     PyObject* ngrams_array = PyArray_SimpleNewFromData(ngrams_nd, ngrams_dims,
                                                        NPY_INT,
                                                        ngrams_region_tsp->get_address());
@@ -163,7 +176,7 @@ namespace Moses {
     ngrams.reset(ngrams_iter);
 
     int scores_nd = 1;
-    npy_intp scores_dims[1] = {15000};
+    npy_intp scores_dims[1] = {staticData.GetCSLMBatchSize()};
     PyObject* scores_array = PyArray_SimpleNewFromData(scores_nd, scores_dims,
                                                        NPY_FLOAT,
                                                        scores_region_tsp->get_address());
@@ -193,7 +206,21 @@ namespace Moses {
     // Create the PyMoses command to execute and pipe PyMoses's stdout back
     // to the parent
     FILE *fpipe;
-    std::string command = "pymoses " + ThisThreadId("");
+    std::string gpu;
+    {
+      boost::lock_guard<boost::mutex> guard(m_mutex);
+      if (m_gpuVec.size() > 0) {
+        gpu = m_gpuVec.back();
+        m_gpuVec.pop_back();
+      } else {
+        gpu = "gpu";
+      }
+    }
+    // TODO: Pass the GPU ID here (if empty, then just pass GPU, else pass ID)
+    // This needs a mutex lock as to not access the vector simultaneously
+    std::string command = "pymoses " + ThisThreadId("") + " " +
+                          to_string(staticData.GetCSLMBatchSize()) + " " +
+                          to_string(GetNGramOrder()) + " " + gpu;
     if (conditional) {
       command = command + " conditional";
     }
@@ -261,12 +288,10 @@ namespace Moses {
     }
     int **dataptr = (int**) NpyIter_GetDataPtrArray(iter);
     for (unsigned int i = 0; i < contextFactor.size(); i++) {
-      // TODO: Do not hardcode factor type
-      if(contextFactor[i]->GetFactor(1)) {
-        **dataptr = contextFactor[i]->GetFactor(1)->GetIndex();
+      if(contextFactor[i]->GetFactor(m_factorType)) {
+        **dataptr = contextFactor[i]->GetFactor(m_factorType)->GetIndex(m_UNK);
       } else {
-        // TODO: DO not hardcode UNK index
-        **dataptr = 1;
+        **dataptr = m_UNK;
       }
       iternext(iter);
     }
@@ -307,10 +332,10 @@ namespace Moses {
         }
         int **dataptr = (int**) NpyIter_GetDataPtrArray(iter);
         for (unsigned int i = 0; i < input.GetSize(); i++) {
-          if(input.GetWord(i).GetFactor(1)) {
-            **dataptr = input.GetWord(i).GetFactor(1)->GetIndex();
+          if(input.GetWord(i).GetFactor(m_sourceFactorType)) {
+            **dataptr = input.GetWord(i).GetFactor(m_sourceFactorType)->GetIndex(m_UNK);
           } else {
-            **dataptr = 1;
+            **dataptr = m_UNK;
           }
           iternext(iter);
         }
@@ -326,18 +351,19 @@ namespace Moses {
     // n-grams of variable length in isolation, so we don't do anything
   }
 
-  void CSLM::IssueRequestsFor(Hypothesis& hypo, const FFState* input_state) {
-    // This is called for each hypothesis; we construct all the possible
-    // n-grams for this phrase and issue a scoring request to Python
-    if(GetNGramOrder() <= 1) {
-      return;
-    }
+
+  FFState *CSLM::Evaluate(const Hypothesis &hypo, const FFState *ps,
+                          ScoreComponentCollection *out) const {
+    // This is called to actually evaluate the hypothesis, assuming
+    // Python has already returned the scores. This logic needs to be
+    // identical to the IssueRequestsFor function
+
     // Empty phrase added? Nothing to be done
     if (hypo.GetCurrTargetLength() == 0) {
-      return;
+      return ps ? NewState(ps) : NULL;
     }
 
-    const size_t currEndPos = hypo.GetCurrTargetWordsRange().GetEndPos();
+    const size_t endPos = hypo.GetCurrTargetWordsRange().GetEndPos();
     const size_t startPos = hypo.GetCurrTargetWordsRange().GetStartPos();
 
     // First n-gram
@@ -345,41 +371,80 @@ namespace Moses {
     size_t index = 0;
     for (int currPos = (int) startPos - (int) GetNGramOrder() + 1;
          currPos <= (int) startPos; currPos++) {
-      if (currPos >= 0) {
-        contextFactor[index++] = &hypo.GetWord(currPos);
-      } else {
+      if (currPos < 0) {
         contextFactor[index++] = &GetSentenceStartWord();
+      } else {
+        contextFactor[index++] = &hypo.GetWord(currPos);
+      }
+    }
+    FFState *res = NewState(ps);
+    float lmScore = ps ? GetValueGivenState(contextFactor, *res).score : GetValueForgotState(contextFactor, *res).score;
+
+    // Intermediary n-grams
+    for (int currTarget = (int) startPos + 1;
+         currTarget <= (int) endPos;
+         currTarget++) {
+      for (size_t i = 0 ; i < GetNGramOrder() - 1 ; i++) {
+        contextFactor[i] = contextFactor[i + 1];
+      }
+      contextFactor.back() = &hypo.GetWord(currTarget);
+      lmScore += GetValueGivenState(contextFactor, *res).score;
+    }
+
+    // If the phrase is finished, also score the EOS marker
+    if (hypo.IsSourceCompleted()) {
+      for (size_t i = 0 ; i < GetNGramOrder() - 1 ; i++) {
+        contextFactor[i] = contextFactor[i + 1];
+      }
+      contextFactor.back() = &GetSentenceEndWord();
+      lmScore += GetValueForgotState(contextFactor, *res).score;
+    }
+    out->PlusEquals(this, lmScore);
+    return res;
+  }
+
+  void CSLM::IssueRequestsFor(Hypothesis& hypo, const FFState* input_state) {
+    // This is called for each hypothesis; we construct all the possible
+    // n-grams for this phrase and issue a scoring request to Python
+
+    // Empty phrase added? Nothing to be done
+    if (hypo.GetCurrTargetLength() == 0) {
+      return;
+    }
+
+    const size_t endPos = hypo.GetCurrTargetWordsRange().GetEndPos();
+    const size_t startPos = hypo.GetCurrTargetWordsRange().GetStartPos();
+
+    // First n-gram
+    std::vector<const Word*> contextFactor(GetNGramOrder());
+    size_t index = 0;
+    for (int currPos = (int) startPos - (int) GetNGramOrder() + 1;
+         currPos <= (int) startPos; currPos++) {
+      if (currPos < 0) {
+        contextFactor[index++] = &GetSentenceStartWord();
+      } else {
+        contextFactor[index++] = &hypo.GetWord(currPos);
       }
     }
     IssuePythonRequest(contextFactor);
 
-    // Main loop
-    // TODO: This logic doesn't make sense! Non phrase-boundary n-grams
-    // also need to be scored... This problem needs to be addressed 
-    // here as well as in Implementation.cpp's Evaluate function
-    size_t endPos = std::min(startPos + GetNGramOrder() - 2, currEndPos);
-    for (size_t currPos = startPos + 1 ; currPos <= endPos ; currPos++) {
-      // Shift all args down 1 place
+    // Intermediary n-grams
+    for (int currTarget = (int) startPos + 1;
+         currTarget <= (int) endPos;
+         currTarget++) {
       for (size_t i = 0 ; i < GetNGramOrder() - 1 ; i++) {
         contextFactor[i] = contextFactor[i + 1];
       }
-      // Add last factor
-      contextFactor.back() = &hypo.GetWord(currPos);
+      contextFactor.back() = &hypo.GetWord(currTarget);
       IssuePythonRequest(contextFactor);
     }
 
-    // End of sentence
+    // If the phrase is finished, also score the EOS marker
     if (hypo.IsSourceCompleted()) {
-      const size_t size = hypo.GetSize();
-      contextFactor.back() = &GetSentenceEndWord();
-      for (size_t i = 0 ; i < GetNGramOrder() - 1 ; i ++) {
-        int currPos = (int)(size - GetNGramOrder() + i + 1);
-        if (currPos < 0) {
-          contextFactor[i] = &GetSentenceStartWord();
-        } else {
-          contextFactor[i] = &hypo.GetWord((size_t)currPos);
-        }
+      for (size_t i = 0 ; i < GetNGramOrder() - 1 ; i++) {
+        contextFactor[i] = contextFactor[i + 1];
       }
+      contextFactor.back() = &GetSentenceEndWord();
       IssuePythonRequest(contextFactor);
     }
   }

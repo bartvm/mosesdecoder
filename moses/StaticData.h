@@ -89,6 +89,7 @@ protected:
   size_t
   m_maxHypoStackSize //! hypothesis-stack size that triggers pruning
   , m_minHypoStackDiversity //! minimum number of hypothesis in stack for each source word coverage
+  , m_CSLMBatchSize
   , m_nBestSize
   , m_latticeSamplesSize
   , m_nBestFactor
@@ -385,6 +386,9 @@ public:
   }
 
   // for mert
+  size_t GetCSLMBatchSize() const {
+    return m_CSLMBatchSize;
+  }
   size_t GetNBestSize() const {
     return m_nBestSize;
   }
