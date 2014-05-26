@@ -6,6 +6,17 @@ using namespace std;
 using namespace boost::interprocess;
 using namespace boost::posix_time;
 
+#include <string>
+#include <sstream>
+
+namespace patch {
+    template <typename T> std::string to_string(const T &n) {
+        std::ostringstream stm;
+        stm << n;
+        return stm.str();
+    }
+}
+
 namespace Moses {
   CSLM::CSLM(const std::string &line)
     : LanguageModelSingleFactor(line),
@@ -20,10 +31,10 @@ namespace Moses {
     FactorCollection &factorCollection = FactorCollection::Instance();
 
     // needed by parent language model classes. Why didn't they set these themselves?
-    m_sentenceStart = factorCollection.AddFactor(Output, m_factorType, to_string(m_BOS));
+    m_sentenceStart = factorCollection.AddFactor(Output, m_factorType, patch::to_string(m_BOS));
     m_sentenceStartWord[m_factorType] = m_sentenceStart;
 
-    m_sentenceEnd	= factorCollection.AddFactor(Output, m_factorType, to_string(m_EOS));
+    m_sentenceEnd	= factorCollection.AddFactor(Output, m_factorType, patch::to_string(m_EOS));
     m_sentenceEndWord[m_factorType] = m_sentenceEnd;
   }
 
@@ -219,8 +230,8 @@ namespace Moses {
     // TODO: Pass the GPU ID here (if empty, then just pass GPU, else pass ID)
     // This needs a mutex lock as to not access the vector simultaneously
     std::string command = "pymoses " + ThisThreadId("") + " " +
-                          to_string(staticData.GetCSLMBatchSize()) + " " +
-                          to_string(GetNGramOrder()) + " " + gpu;
+                          patch::to_string(staticData.GetCSLMBatchSize()) + " " +
+                          patch::to_string(GetNGramOrder()) + " " + gpu;
     if (conditional) {
       command = command + " conditional";
     }
